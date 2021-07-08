@@ -60,6 +60,11 @@ type HealthSummary struct {
 
 	Total           int64   // 本次统计窗口所执行的所有次数。
 	ErrorPercentage float64 // 错误数量百分比。
+
+	lastExecuteTime time.Time // 最后一次执行时间。
+	lastSuccessTime time.Time // 最后一次成功执行时间。
+	lastTimeoutTime time.Time // 最后一次超时时间。
+	lastFailureTime time.Time // 最后一次失败时间。
 }
 
 // newMetric 用于获取一个Metric对象。
@@ -118,6 +123,11 @@ func (metric *Metric) GetHealthSummary() HealthSummary {
 	} else {
 		summary.ErrorPercentage = float64(summary.Failure) / float64(summary.Total) * 100
 	}
+
+	summary.lastExecuteTime = metric.lastExecuteTime
+	summary.lastSuccessTime = metric.lastSuccessTime
+	summary.lastTimeoutTime = metric.lastTimeoutTime
+	summary.lastFailureTime = metric.lastFailureTime
 
 	return summary
 }

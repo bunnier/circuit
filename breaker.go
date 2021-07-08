@@ -1,6 +1,10 @@
 package circuit
 
-import "time"
+import (
+	"sync/atomic"
+	"time"
+	"unsafe"
+)
 
 // BreakerStatus 是熔断器状态。
 type BreakerStatus int8
@@ -16,6 +20,8 @@ type Breaker struct {
 	name   string  // 名称。
 	metric *Metric // 执行情况统计数据。
 
+	status BreakerStatus // 最后一次运行后的状态。
+
 	minRequestThreshold      int64         // 断路器生效必须满足的最小流量。
 	errorThresholdPercentage float64       // 开启熔断的错误百分比阈值。
 	sleepWindow              time.Duration // 熔断后重置断路器的时间窗口。
@@ -25,10 +31,10 @@ type Breaker struct {
 // NewBreaker 用于新建一个熔断器。
 func NewBreaker(name string, options ...BreakerOption) *Breaker {
 	breaker := &Breaker{
-		name: name,
-
+		name:                     name,
+		status:                   Closed, // 默认关闭。
 		minRequestThreshold:      20,
-		errorThresholdPercentage: 0.5,
+		errorThresholdPercentage: 50, // 即50%。
 		sleepWindow:              time.Second * 5,
 		timeWindow:               5,
 	}
@@ -41,6 +47,42 @@ func NewBreaker(name string, options ...BreakerOption) *Breaker {
 	breaker.metric = newMetric(WithMetricCounterSize(breaker.timeWindow))
 
 	return breaker
+}
+
+// IsOpen 判断当前断路器是否打开。
+func (breaker *Breaker) IsOpen() bool {
+	// 几个变量供下面逻辑取地址使用。
+	status, openning, HalfOpening := &breaker.status, Openning, HalfOpening
+	healthSummary := breaker.metric.GetHealthSummary() // 当前健康统计。
+
+	switch breaker.status {
+	case Closed:
+		// 没有满足最小流量要求 或 没有到达错误百分比阈值。
+		if healthSummary.Total < breaker.minRequestThreshold ||
+			healthSummary.ErrorPercentage < breaker.errorThresholdPercentage {
+			return false
+		}
+		breaker.status = Openning
+		return true
+
+	case Openning:
+		// 判断是否已经达到熔断时间。
+		if time.Since(healthSummary.lastExecuteTime) < breaker.sleepWindow {
+			return true
+		}
+		// 过了休眠时间，设置为半开状态，并放一个请求试试。
+		// 这里可能并发，用个CAS控制，换不到的还是开启，换到的就关闭一次。
+		return !atomic.CompareAndSwapPointer(
+			(*unsafe.Pointer)(unsafe.Pointer(&status)),
+			unsafe.Pointer(&openning),
+			unsafe.Pointer(&HalfOpening))
+
+	case HalfOpening:
+		return true // 半开状态时候，除了改变状态的请求外，其余请求依然拒绝。
+
+	default:
+		panic("breaker: impossible status")
+	}
 }
 
 // BreakerOption 是Breaker的可选项。
