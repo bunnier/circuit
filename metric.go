@@ -96,7 +96,7 @@ func newMetric(options ...MerticOption) *Metric {
 }
 
 // GetHealthSummary 根据当前统计信息给出健康摘要。
-func (metric *Metric) GetHealthSummary() HealthSummary {
+func (metric *Metric) GetHealthSummary() *HealthSummary {
 	summary := HealthSummary{}
 
 	metric.rwLock.RLock()
@@ -132,7 +132,7 @@ func (metric *Metric) GetHealthSummary() HealthSummary {
 	summary.lastTimeoutTime = metric.lastTimeoutTime
 	summary.lastFailureTime = metric.lastFailureTime
 
-	return summary
+	return &summary
 }
 
 // Success 记录一次成功事件。

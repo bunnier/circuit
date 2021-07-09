@@ -3,23 +3,13 @@ package circuit
 import (
 	"sync/atomic"
 	"time"
-	"unsafe"
 )
 
-// BreakerStatus 是熔断器状态。
-type BreakerStatus int8
-
+// 这里本不需要用int32，为了放到CAS方法中使用，使用int32。
 const (
-	Closed      BreakerStatus = 0    // 熔断关闭。
-	Openning    BreakerStatus = iota // 熔断开启。
-	HalfOpening BreakerStatus = iota // 半熔断状态。
-)
-
-// 由于常量无法取地址，这里设置几个和上面一致的变量。
-var (
-	closed      BreakerStatus = Closed      // 熔断关闭。
-	openning    BreakerStatus = Openning    // 熔断开启。
-	halfOpening BreakerStatus = HalfOpening // 半熔断状态。
+	Closed      int32 = 0 // 熔断关闭。
+	Openning    int32 = 1 // 熔断开启。
+	HalfOpening int32 = 2 // 半熔断状态。
 )
 
 // Breaker 是熔断器结构。
@@ -27,7 +17,7 @@ type Breaker struct {
 	name   string  // 名称。
 	metric *Metric // 执行情况统计数据。
 
-	status BreakerStatus // 最后一次运行后的状态。
+	internalStatus int32 // 熔断器的内部状态，内部维护3个状态。
 
 	minRequestThreshold      int64         // 熔断器生效必须满足的最小流量。
 	errorThresholdPercentage float64       // 开启熔断的错误百分比阈值。
@@ -39,7 +29,7 @@ type Breaker struct {
 func NewBreaker(name string, options ...BreakerOption) *Breaker {
 	breaker := &Breaker{
 		name:                     name,
-		status:                   Closed, // 默认关闭。
+		internalStatus:           Closed, // 默认关闭。
 		minRequestThreshold:      20,     // 默认20个请求起算。
 		errorThresholdPercentage: 50,     // 默认50%。
 		sleepWindow:              time.Second * 5,
@@ -56,16 +46,16 @@ func NewBreaker(name string, options ...BreakerOption) *Breaker {
 	return breaker
 }
 
-// Metric 返回本Breaker所使用的Metric。
-func (breaker *Breaker) Metric() *Metric {
-	return breaker.metric
+// HealthSummary 返回当前健康状态。
+func (breaker *Breaker) HealthSummary() *HealthSummary {
+	return breaker.metric.GetHealthSummary()
 }
 
 // IsOpen 判断当前熔断器是否打开。
 func (breaker *Breaker) IsOpen() bool {
 	healthSummary := breaker.metric.GetHealthSummary() // 当前健康统计。
 
-	switch breaker.status {
+	switch breaker.internalStatus {
 	case Closed:
 		// 没有满足最小流量要求 或 没有到达错误百分比阈值。
 		if healthSummary.Total < breaker.minRequestThreshold ||
@@ -73,11 +63,7 @@ func (breaker *Breaker) IsOpen() bool {
 			return false
 		}
 		// 开启熔断器，Closed应该不会马上变化为其它状态，不过安全起见，还是通过CAS赋值把。
-		status := &breaker.status
-		atomic.CompareAndSwapPointer(
-			(*unsafe.Pointer)(unsafe.Pointer(&status)),
-			unsafe.Pointer(&closed),
-			unsafe.Pointer(&openning))
+		atomic.CompareAndSwapInt32(&breaker.internalStatus, Closed, Openning)
 		return true
 
 	case HalfOpening:
@@ -90,11 +76,7 @@ func (breaker *Breaker) IsOpen() bool {
 		}
 		// 过了休眠时间，设置为半开状态，并放一个请求试试。
 		// 这里可能并发，用个CAS控制，换不到的还是开启，换到的就关闭一次。
-		status := &breaker.status
-		return !atomic.CompareAndSwapPointer(
-			(*unsafe.Pointer)(unsafe.Pointer(&status)),
-			unsafe.Pointer(&openning),
-			unsafe.Pointer(&halfOpening))
+		return !atomic.CompareAndSwapInt32(&breaker.internalStatus, Openning, HalfOpening)
 
 	default:
 		panic("breaker: impossible status")
@@ -103,14 +85,10 @@ func (breaker *Breaker) IsOpen() bool {
 
 // Success 用于记录成功信息。
 func (breaker *Breaker) Success() {
-	if breaker.status == HalfOpening {
+	if breaker.internalStatus == HalfOpening {
 		breaker.metric.Reset() // 注意：这里需要先Reset metric再改状态，否则会有并发问题。
 		// HalfOpening状态目前的实现不会有并发，但还是顺手用CAS吧。
-		status := &breaker.status
-		atomic.CompareAndSwapPointer(
-			(*unsafe.Pointer)(unsafe.Pointer(&status)),
-			unsafe.Pointer(&halfOpening),
-			unsafe.Pointer(&closed))
+		atomic.CompareAndSwapInt32(&breaker.internalStatus, HalfOpening, Closed)
 		return
 	}
 	breaker.metric.Success()
@@ -118,13 +96,9 @@ func (breaker *Breaker) Success() {
 
 // Failure 用于记录失败信息。
 func (breaker *Breaker) Failure() {
-	if breaker.status == HalfOpening {
+	if breaker.internalStatus == HalfOpening {
 		// HalfOpening状态目前的实现不会有并发，但还是顺手用CAS吧。
-		status := &breaker.status
-		atomic.CompareAndSwapPointer(
-			(*unsafe.Pointer)(unsafe.Pointer(&status)),
-			unsafe.Pointer(&halfOpening),
-			unsafe.Pointer(&openning))
+		atomic.CompareAndSwapInt32(&breaker.internalStatus, HalfOpening, Openning)
 		return
 	}
 	breaker.metric.Failure()
@@ -132,13 +106,9 @@ func (breaker *Breaker) Failure() {
 
 // Timeout 用于记录失败信息。
 func (breaker *Breaker) Timeout() {
-	if breaker.status == HalfOpening {
+	if breaker.internalStatus == HalfOpening {
 		// HalfOpening状态目前的实现不会有并发，但还是顺手用CAS吧。
-		status := &breaker.status
-		atomic.CompareAndSwapPointer(
-			(*unsafe.Pointer)(unsafe.Pointer(&status)),
-			unsafe.Pointer(&halfOpening),
-			unsafe.Pointer(&openning))
+		atomic.CompareAndSwapInt32(&breaker.internalStatus, HalfOpening, Openning)
 		return
 	}
 	breaker.metric.Timeout()
