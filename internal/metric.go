@@ -1,4 +1,4 @@
-package circuit
+package internal
 
 import (
 	"context"
@@ -63,14 +63,14 @@ type HealthSummary struct {
 	Total           int64   // 本次统计窗口所执行的所有次数。
 	ErrorPercentage float64 // 错误数量百分比。
 
-	lastExecuteTime time.Time // 最后一次执行时间。
-	lastSuccessTime time.Time // 最后一次成功执行时间。
-	lastTimeoutTime time.Time // 最后一次超时时间。
-	lastFailureTime time.Time // 最后一次失败时间。
+	LastExecuteTime time.Time // 最后一次执行时间。
+	LastSuccessTime time.Time // 最后一次成功执行时间。
+	LastTimeoutTime time.Time // 最后一次超时时间。
+	LastFailureTime time.Time // 最后一次失败时间。
 }
 
-// newMetric 用于获取一个Metric对象。
-func newMetric(options ...MerticOption) *Metric {
+// NewMetric 用于获取一个Metric对象。
+func NewMetric(options ...MerticOption) *Metric {
 	const channelBufferSize int8 = 10 // 用于发送统计数据的channel大小。
 	ctx, cancel := context.WithCancel(context.Background())
 	metric := &Metric{
@@ -127,10 +127,10 @@ func (metric *Metric) GetHealthSummary() *HealthSummary {
 		summary.ErrorPercentage = float64(summary.Failure) / float64(summary.Total) * 100
 	}
 
-	summary.lastExecuteTime = metric.lastExecuteTime
-	summary.lastSuccessTime = metric.lastSuccessTime
-	summary.lastTimeoutTime = metric.lastTimeoutTime
-	summary.lastFailureTime = metric.lastFailureTime
+	summary.LastExecuteTime = metric.lastExecuteTime
+	summary.LastSuccessTime = metric.lastSuccessTime
+	summary.LastTimeoutTime = metric.lastTimeoutTime
+	summary.LastFailureTime = metric.lastFailureTime
 
 	return &summary
 }

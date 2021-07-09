@@ -3,6 +3,8 @@ package circuit
 import (
 	"sync/atomic"
 	"time"
+
+	"github.com/bunnier/circuit/internal"
 )
 
 // 这里本不需要用int32，为了放到CAS方法中使用，使用int32。
@@ -14,8 +16,8 @@ const (
 
 // Breaker 是熔断器结构。
 type Breaker struct {
-	name   string  // 名称。
-	metric *Metric // 执行情况统计数据。
+	name   string           // 名称。
+	metric *internal.Metric // 执行情况统计数据。
 
 	internalStatus int32 // 熔断器的内部状态，内部维护3个状态。
 
@@ -41,13 +43,13 @@ func NewBreaker(name string, options ...BreakerOption) *Breaker {
 	}
 
 	// 初始化选项后，根据选项初始化Metric。
-	breaker.metric = newMetric(WithMetricCounterSize(breaker.timeWindow))
+	breaker.metric = internal.NewMetric(internal.WithMetricCounterSize(breaker.timeWindow))
 
 	return breaker
 }
 
 // HealthSummary 返回当前健康状态。
-func (breaker *Breaker) HealthSummary() *HealthSummary {
+func (breaker *Breaker) HealthSummary() *internal.HealthSummary {
 	return breaker.metric.GetHealthSummary()
 }
 
@@ -71,7 +73,7 @@ func (breaker *Breaker) IsOpen() bool {
 
 	case Openning:
 		// 判断是否已经达到熔断时间。
-		if time.Since(healthSummary.lastExecuteTime) < breaker.sleepWindow {
+		if time.Since(healthSummary.LastExecuteTime) < breaker.sleepWindow {
 			return true
 		}
 		// 过了休眠时间，设置为半开状态，并放一个请求试试。
