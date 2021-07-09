@@ -32,10 +32,10 @@ func NewCommand(name string, run CommandFunc, options ...CommandOptionFunc) *Com
 	// breaker对象比较大，就不在前面设置默认值了。
 	if command.breaker == nil {
 		command.breaker = NewBreaker(name,
-			WithBreakderCounterSize(5*time.Second),
-			WithBreakderErrorThresholdPercentage(50),
-			WithBreakderMinRequestThreshold(10),
-			WithBreakderSleepWindow(5*time.Second))
+			WithBreakerCounterSize(5*time.Second),
+			WithBreakerErrorThresholdPercentage(50),
+			WithBreakerMinRequestThreshold(10),
+			WithBreakerSleepWindow(5*time.Second))
 	}
 
 	return command

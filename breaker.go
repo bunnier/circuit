@@ -125,29 +125,29 @@ func (breaker *Breaker) FallbackFailure() {
 // BreakerOption 是Breaker的可选项。
 type BreakerOption func(breaker *Breaker)
 
-// WithBreakderMinRequestThreshold 设置熔断器生效必须满足的最小流量。
-func WithBreakderMinRequestThreshold(minRequestThreshold int64) BreakerOption {
+// WithBreakerMinRequestThreshold 设置熔断器生效必须满足的最小流量。
+func WithBreakerMinRequestThreshold(minRequestThreshold int64) BreakerOption {
 	return func(breaker *Breaker) {
 		breaker.minRequestThreshold = minRequestThreshold
 	}
 }
 
 // WithBreakderMinRequestThreshold 设置熔断器生效必须满足的最小流量。
-func WithBreakderErrorThresholdPercentage(errorThresholdPercentage float64) BreakerOption {
+func WithBreakerErrorThresholdPercentage(errorThresholdPercentage float64) BreakerOption {
 	return func(breaker *Breaker) {
 		breaker.errorThresholdPercentage = errorThresholdPercentage
 	}
 }
 
 // WithBreakderMinRequestThreshold 设置熔断后重置熔断器的时间窗口。
-func WithBreakderSleepWindow(sleepWindow time.Duration) BreakerOption {
+func WithBreakerSleepWindow(sleepWindow time.Duration) BreakerOption {
 	return func(breaker *Breaker) {
 		breaker.sleepWindow = sleepWindow
 	}
 }
 
 // WithBreakderMinRequestThreshold 设置滑动窗口的大小（要求1-60s）。
-func WithBreakderCounterSize(timeWindow time.Duration) BreakerOption {
+func WithBreakerCounterSize(timeWindow time.Duration) BreakerOption {
 	if timeWindow < time.Second || timeWindow > time.Minute {
 		panic("breaker: timeWindow invalid") // 窗口大小错误属于无法恢复的错误，直接panic把。
 	}
