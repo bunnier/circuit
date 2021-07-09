@@ -17,16 +17,18 @@ type Metric struct {
 	timeWindow time.Duration  // 滑动窗口的大小（单位秒1-60）。
 	counters   []*UnitCounter // 滑动窗口的所有统计数据，按timeWindow的秒数，多少秒就多少长度。
 
-	successCh         chan time.Time // 用于成功数量统计。
-	timeoutCh         chan time.Time // 用于超时数量统计
-	failureCh         chan time.Time // 用于失败数量统计。
-	fallbackSuccessCh chan time.Time // 用于失败回调执行成功统计。
-	fallbackFailureCh chan time.Time // 用于失败回调执行失败统计。
+	successCh         chan time.Time // 用于记录一次成功数量统计。
+	timeoutCh         chan time.Time // 用于记录一次超时数量统计
+	failureCh         chan time.Time // 用于记录一次失败数量统计。
+	fallbackSuccessCh chan time.Time // 用于记录一次失败回调执行成功统计。
+	fallbackFailureCh chan time.Time // 用于记录一次失败回调执行失败统计。
+	resetCh           chan time.Time // 用于重置所有统计数据。
 
 	lastExecuteTime time.Time // 最后一次执行时间。
 	lastSuccessTime time.Time // 最后一次成功执行时间。
 	lastTimeoutTime time.Time // 最后一次超时时间。
 	lastFailureTime time.Time // 最后一次失败时间。
+	lastResetTime   time.Time // 最后一次重置统计时间。
 }
 
 // UnitCounter 用于记录滑动窗口中一个单元（1s）的统计数据。
@@ -81,6 +83,7 @@ func newMetric(options ...MerticOption) *Metric {
 		failureCh:         make(chan time.Time, channelBufferSize),
 		fallbackSuccessCh: make(chan time.Time, channelBufferSize),
 		fallbackFailureCh: make(chan time.Time, channelBufferSize),
+		resetCh:           make(chan time.Time, channelBufferSize),
 	}
 
 	for _, option := range options {
@@ -152,9 +155,14 @@ func (metric *Metric) FallbackSuccess() {
 	metric.fallbackSuccessCh <- time.Now()
 }
 
-// FallbackFailureCh 记录一次失败回调执行失败事件。
-func (metric *Metric) FallbackFailureCh() {
+// FallbackFailure 记录一次失败回调执行失败事件。
+func (metric *Metric) FallbackFailure() {
 	metric.fallbackFailureCh <- time.Now()
+}
+
+// Reset 用于重置所有统计数据。
+func (metric *Metric) Reset() {
+	metric.resetCh <- time.Now()
 }
 
 // Run 用于开始统计数据处理。
@@ -174,6 +182,8 @@ func (metric *Metric) Run(ctx context.Context) {
 				metric.doFallbackSuccess(now)
 			case now := <-metric.fallbackFailureCh:
 				metric.doFallbackFailure(now)
+			case now := <-metric.resetCh:
+				metric.doReset(now)
 			}
 		}
 	}()
@@ -222,6 +232,13 @@ func (metric *Metric) doFallbackFailure(now time.Time) {
 	metric.doWithStatusLock(func() {
 		metric.lastExecuteTime = now
 		metric.getCurrentCounter(now).FallbackFailure++
+	})
+}
+
+func (metric *Metric) doReset(now time.Time) {
+	metric.doWithStatusLock(func() {
+		metric.lastResetTime = now
+		metric.counters = make([]*UnitCounter, metric.timeWindow/time.Second) // 直接新建一个统计量。
 	})
 }
 

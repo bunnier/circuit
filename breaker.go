@@ -22,9 +22,9 @@ type Breaker struct {
 
 	status BreakerStatus // 最后一次运行后的状态。
 
-	minRequestThreshold      int64         // 断路器生效必须满足的最小流量。
+	minRequestThreshold      int64         // 熔断器生效必须满足的最小流量。
 	errorThresholdPercentage float64       // 开启熔断的错误百分比阈值。
-	sleepWindow              time.Duration // 熔断后重置断路器的时间窗口。
+	sleepWindow              time.Duration // 熔断后重置熔断器的时间窗口。
 	timeWindow               time.Duration // 滑动窗口的大小（单位秒1-60）。
 }
 
@@ -49,7 +49,12 @@ func NewBreaker(name string, options ...BreakerOption) *Breaker {
 	return breaker
 }
 
-// IsOpen 判断当前断路器是否打开。
+// Metric 返回本Breaker所使用的Metric。
+func (breaker *Breaker) Metric() *Metric {
+	return breaker.metric
+}
+
+// IsOpen 判断当前熔断器是否打开。
 func (breaker *Breaker) IsOpen() bool {
 	// 几个变量供下面逻辑取地址使用。
 	status, openning, HalfOpening := &breaker.status, Openning, HalfOpening
@@ -65,6 +70,9 @@ func (breaker *Breaker) IsOpen() bool {
 		breaker.status = Openning
 		return true
 
+	case HalfOpening:
+		return true // 半开状态时候，除了改变状态的请求外，其余请求依然拒绝。
+
 	case Openning:
 		// 判断是否已经达到熔断时间。
 		if time.Since(healthSummary.lastExecuteTime) < breaker.sleepWindow {
@@ -77,32 +85,40 @@ func (breaker *Breaker) IsOpen() bool {
 			unsafe.Pointer(&openning),
 			unsafe.Pointer(&HalfOpening))
 
-	case HalfOpening:
-		return true // 半开状态时候，除了改变状态的请求外，其余请求依然拒绝。
-
 	default:
 		panic("breaker: impossible status")
 	}
 }
 
+// GetStatus 获取熔断器的状态。
+func (breaker *Breaker) GetStatus() BreakerStatus {
+	return breaker.status
+}
+
+// 重置熔断器。
+func (breaker *Breaker) Reset() {
+	breaker.status = Closed
+	breaker.metric.Reset()
+}
+
 // BreakerOption 是Breaker的可选项。
 type BreakerOption func(breaker *Breaker)
 
-// WithBreakderMinRequestThreshold 设置断路器生效必须满足的最小流量。
+// WithBreakderMinRequestThreshold 设置熔断器生效必须满足的最小流量。
 func WithBreakderMinRequestThreshold(minRequestThreshold int64) BreakerOption {
 	return func(breaker *Breaker) {
 		breaker.minRequestThreshold = minRequestThreshold
 	}
 }
 
-// WithBreakderMinRequestThreshold 设置断路器生效必须满足的最小流量。
+// WithBreakderMinRequestThreshold 设置熔断器生效必须满足的最小流量。
 func WithBreakderErrorThresholdPercentage(errorThresholdPercentage float64) BreakerOption {
 	return func(breaker *Breaker) {
 		breaker.errorThresholdPercentage = errorThresholdPercentage
 	}
 }
 
-// WithBreakderMinRequestThreshold 设置熔断后重置断路器的时间窗口。
+// WithBreakderMinRequestThreshold 设置熔断后重置熔断器的时间窗口。
 func WithBreakderSleepWindow(sleepWindow time.Duration) BreakerOption {
 	return func(breaker *Breaker) {
 		breaker.sleepWindow = sleepWindow
