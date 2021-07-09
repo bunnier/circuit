@@ -1,3 +1,5 @@
 # circuit[WIP]
 
-一个简单的窗口计数熔断器。
+[![Go](https://github.com/bunnier/circuit/actions/workflows/go.yml/badge.svg)](https://github.com/bunnier/circuit/actions/workflows/go.yml)
+
+一个基于窗口计数的轻量级熔断器。
