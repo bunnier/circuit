@@ -96,9 +96,8 @@ func (breaker *Breaker) Success() {
 
 // Failure 用于记录失败信息。
 func (breaker *Breaker) Failure() {
-	if breaker.internalStatus == HalfOpening {
-		// HalfOpening状态目前的实现不会有并发，但还是顺手用CAS吧。
-		atomic.CompareAndSwapInt32(&breaker.internalStatus, HalfOpening, Openning)
+	// HalfOpening状态目前的实现不会有并发，但还是顺手用CAS吧。
+	if atomic.CompareAndSwapInt32(&breaker.internalStatus, HalfOpening, Openning) {
 		return
 	}
 	breaker.metric.Failure()
@@ -106,9 +105,8 @@ func (breaker *Breaker) Failure() {
 
 // Timeout 用于记录失败信息。
 func (breaker *Breaker) Timeout() {
-	if breaker.internalStatus == HalfOpening {
-		// HalfOpening状态目前的实现不会有并发，但还是顺手用CAS吧。
-		atomic.CompareAndSwapInt32(&breaker.internalStatus, HalfOpening, Openning)
+	// HalfOpening状态目前的实现不会有并发，但还是顺手用CAS吧。
+	if atomic.CompareAndSwapInt32(&breaker.internalStatus, HalfOpening, Openning) {
 		return
 	}
 	breaker.metric.Timeout()
