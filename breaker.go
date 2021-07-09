@@ -10,12 +10,19 @@ import (
 type BreakerStatus int8
 
 const (
-	Closed      BreakerStatus = 0 // 熔断关闭。
-	Openning    BreakerStatus = 1 // 熔断开启。
-	HalfOpening BreakerStatus = 2 // 半熔断状态。
+	Closed      BreakerStatus = 0    // 熔断关闭。
+	Openning    BreakerStatus = iota // 熔断开启。
+	HalfOpening BreakerStatus = iota // 半熔断状态。
 )
 
-// 熔断器结构。
+// 由于常量无法取地址，这里设置几个和上面一致的变量。
+var (
+	closed      BreakerStatus = Closed      // 熔断关闭。
+	openning    BreakerStatus = Openning    // 熔断开启。
+	halfOpening BreakerStatus = HalfOpening // 半熔断状态。
+)
+
+// Breaker 是熔断器结构。
 type Breaker struct {
 	name   string  // 名称。
 	metric *Metric // 执行情况统计数据。
@@ -33,8 +40,8 @@ func NewBreaker(name string, options ...BreakerOption) *Breaker {
 	breaker := &Breaker{
 		name:                     name,
 		status:                   Closed, // 默认关闭。
-		minRequestThreshold:      20,
-		errorThresholdPercentage: 50, // 即50%。
+		minRequestThreshold:      20,     // 默认20个请求起算。
+		errorThresholdPercentage: 50,     // 默认50%。
 		sleepWindow:              time.Second * 5,
 		timeWindow:               5,
 	}
@@ -56,8 +63,6 @@ func (breaker *Breaker) Metric() *Metric {
 
 // IsOpen 判断当前熔断器是否打开。
 func (breaker *Breaker) IsOpen() bool {
-	// 几个变量供下面逻辑取地址使用。
-	status, openning, HalfOpening := &breaker.status, Openning, HalfOpening
 	healthSummary := breaker.metric.GetHealthSummary() // 当前健康统计。
 
 	switch breaker.status {
@@ -67,11 +72,16 @@ func (breaker *Breaker) IsOpen() bool {
 			healthSummary.ErrorPercentage < breaker.errorThresholdPercentage {
 			return false
 		}
-		breaker.status = Openning
+		// 开启熔断器，Closed应该不会马上变化为其它状态，不过安全起见，还是通过CAS赋值把。
+		status := &breaker.status
+		atomic.CompareAndSwapPointer(
+			(*unsafe.Pointer)(unsafe.Pointer(&status)),
+			unsafe.Pointer(&closed),
+			unsafe.Pointer(&openning))
 		return true
 
 	case HalfOpening:
-		return true // 半开状态时候，除了改变状态的请求外，其余请求依然拒绝。
+		return true // 半开状态，说明已经有一个请求正在尝试，拒绝所有其它请求。
 
 	case Openning:
 		// 判断是否已经达到熔断时间。
@@ -80,25 +90,68 @@ func (breaker *Breaker) IsOpen() bool {
 		}
 		// 过了休眠时间，设置为半开状态，并放一个请求试试。
 		// 这里可能并发，用个CAS控制，换不到的还是开启，换到的就关闭一次。
+		status := &breaker.status
 		return !atomic.CompareAndSwapPointer(
 			(*unsafe.Pointer)(unsafe.Pointer(&status)),
 			unsafe.Pointer(&openning),
-			unsafe.Pointer(&HalfOpening))
+			unsafe.Pointer(&halfOpening))
 
 	default:
 		panic("breaker: impossible status")
 	}
 }
 
-// GetStatus 获取熔断器的状态。
-func (breaker *Breaker) GetStatus() BreakerStatus {
-	return breaker.status
+// Success 用于记录成功信息。
+func (breaker *Breaker) Success() {
+	if breaker.status == HalfOpening {
+		breaker.metric.Reset() // 注意：这里需要先Reset metric再改状态，否则会有并发问题。
+		// HalfOpening状态目前的实现不会有并发，但还是顺手用CAS吧。
+		status := &breaker.status
+		atomic.CompareAndSwapPointer(
+			(*unsafe.Pointer)(unsafe.Pointer(&status)),
+			unsafe.Pointer(&halfOpening),
+			unsafe.Pointer(&closed))
+		return
+	}
+	breaker.metric.Success()
 }
 
-// 重置熔断器。
-func (breaker *Breaker) Reset() {
-	breaker.status = Closed
-	breaker.metric.Reset()
+// Failure 用于记录失败信息。
+func (breaker *Breaker) Failure() {
+	if breaker.status == HalfOpening {
+		// HalfOpening状态目前的实现不会有并发，但还是顺手用CAS吧。
+		status := &breaker.status
+		atomic.CompareAndSwapPointer(
+			(*unsafe.Pointer)(unsafe.Pointer(&status)),
+			unsafe.Pointer(&halfOpening),
+			unsafe.Pointer(&openning))
+		return
+	}
+	breaker.metric.Failure()
+}
+
+// Timeout 用于记录失败信息。
+func (breaker *Breaker) Timeout() {
+	if breaker.status == HalfOpening {
+		// HalfOpening状态目前的实现不会有并发，但还是顺手用CAS吧。
+		status := &breaker.status
+		atomic.CompareAndSwapPointer(
+			(*unsafe.Pointer)(unsafe.Pointer(&status)),
+			unsafe.Pointer(&halfOpening),
+			unsafe.Pointer(&openning))
+		return
+	}
+	breaker.metric.Timeout()
+}
+
+// FallbackSuccess 记录一次失败回调执行成功事件。
+func (breaker *Breaker) FallbackSuccess() {
+	breaker.metric.FallbackSuccess()
+}
+
+// FallbackFailure 记录一次失败回调执行失败事件。
+func (breaker *Breaker) FallbackFailure() {
+	breaker.metric.FallbackSuccess()
 }
 
 // BreakerOption 是Breaker的可选项。
