@@ -100,10 +100,10 @@ func (metric *Metric) GetHealthSummary() *HealthSummary {
 	summary := HealthSummary{}
 
 	metric.rwLock.RLock()
-	defer metric.rwLock.Unlock()
+	defer metric.rwLock.RUnlock()
 
 	for _, counter := range metric.counters {
-		if counter != nil {
+		if counter == nil {
 			continue
 		}
 
@@ -250,6 +250,7 @@ func (metric *Metric) getCurrentCounter(now time.Time) *UnitCounter {
 
 	if currentCounter == nil {
 		currentCounter = &UnitCounter{}
+		metric.counters[index] = currentCounter
 	} else {
 		// unix时间戳到秒，只要时间戳不同，说明已经不再同一秒，只是取模后结果相同而已，需要重置。
 		if now.Unix() != currentCounter.LastRecordTime.Unix() {
