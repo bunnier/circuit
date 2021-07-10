@@ -1,6 +1,7 @@
 package circuit
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -104,4 +105,63 @@ func TestBreaker_isOpen(t *testing.T) {
 
 // TestBreaker_workflow 测试熔断器的完整工作流程。
 func TestBreaker_workflow(t *testing.T) {
+	breaker := NewBreaker("test",
+		WithBreakerCounterSize(5*time.Second),
+		WithBreakerErrorThresholdPercentage(50),
+		WithBreakerMinRequestThreshold(20),
+		WithBreakerSleepWindow(2*time.Second))
+
+	var wg sync.WaitGroup
+	for i := 0; i < 1000; i++ {
+		wg.Add(1)
+		go func() {
+			breaker.Success()
+			wg.Done()
+		}()
+	}
+	for i := 0; i < 999; i++ {
+		wg.Add(1)
+		go func() {
+			breaker.Failure()
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+
+	// 此时应还是关闭。
+	if isOpen, _ := breaker.IsOpen(); isOpen {
+		t.Errorf("Breaker.IsOpen() got = %v, want %v", isOpen, false)
+	}
+
+	breaker.Timeout()
+	// 此时应该开启了。
+	if isOpen, _ := breaker.IsOpen(); !isOpen {
+		t.Errorf("Breaker.IsOpen() got = %v, want %v", isOpen, true)
+	}
+
+	time.Sleep(2 * time.Second)
+	// 睡眠期结束，应该可以进入半熔断了。
+	if isOpen, statusMsg := breaker.IsOpen(); isOpen {
+		t.Errorf("Breaker.IsOpen() got = %v, want %v", isOpen, false)
+	} else if statusMsg != "half-open" {
+		t.Errorf("Breaker.IsOpen() got = %v, want %v", statusMsg, "half-open")
+	}
+
+	breaker.Failure() // 半熔断状态失败，再次进入熔断。
+	if isOpen, _ := breaker.IsOpen(); !isOpen {
+		t.Errorf("Breaker.IsOpen() got = %v, want %v", isOpen, true)
+	}
+
+	time.Sleep(2 * time.Second)
+	// 睡眠期结束，应该可以进入半熔断了。
+	if isOpen, statusMsg := breaker.IsOpen(); isOpen {
+		t.Errorf("Breaker.IsOpen() got = %v, want %v", isOpen, false)
+	} else if statusMsg != "half-open" {
+		t.Errorf("Breaker.IsOpen() got = %v, want %v", statusMsg, "half-open")
+	}
+
+	breaker.Success() // 半熔断状态成功，关闭熔断器。
+	if isOpen, _ := breaker.IsOpen(); isOpen {
+		t.Errorf("Breaker.IsOpen() got = %v, want %v", isOpen, false)
+	}
 }
