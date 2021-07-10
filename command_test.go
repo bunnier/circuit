@@ -8,16 +8,23 @@ import (
 )
 
 func TestCommand_workflow(t *testing.T) {
-	command := NewCommand("test", func(i []interface{}) ([]interface{}, error) {
+	// 功能函数。
+	run := func(i []interface{}) ([]interface{}, error) {
 		param := i[0].(int)
 		param++
 		if param > 5000 {
 			return nil, errors.New("more then 5000")
 		}
 		return []interface{}{param}, nil
-	}, WithCommandFallback(func(i []interface{}, e error) ([]interface{}, error) {
+	}
+
+	// 降级函数。
+	fallback := func(i []interface{}, e error) ([]interface{}, error) {
 		return nil, fmt.Errorf("fallback: %w", e)
-	}))
+	}
+
+	// 初始化Command。
+	command := NewCommand("test", run, WithCommandFallback(fallback))
 
 	for i := 0; i < 10000; i++ {
 		r, err := command.Execute([]interface{}{i})
