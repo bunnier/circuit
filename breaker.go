@@ -64,9 +64,9 @@ func (breaker *Breaker) IsOpen() bool {
 			healthSummary.ErrorPercentage < breaker.errorThresholdPercentage {
 			return false
 		}
-		// 开启熔断器，Closed应该不会马上变化为其它状态，不过安全起见，还是通过CAS赋值把。
+		// 开启熔断器，Closed应该不会马上变化为除Open外的其它状态，不过安全起见，还是通过CAS赋值把。
 		atomic.CompareAndSwapInt32(&breaker.internalStatus, Closed, Openning)
-		return true
+		return true // 无论上面结果如何，都开启。
 
 	case HalfOpening:
 		return true // 半开状态，说明已经有一个请求正在尝试，拒绝所有其它请求。
