@@ -1,16 +1,19 @@
 package circuit
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
-type CommandFunc func([]interface{}) ([]interface{}, error)                // Command功能函数签名。
-type CommandFallbackFunc func([]interface{}, error) ([]interface{}, error) // Command Fallback函数签名。
+type CommandFunc func([]interface{}) ([]interface{}, error)                // 功能函数签名。
+type CommandFallbackFunc func([]interface{}, error) ([]interface{}, error) // 降级函数签名。
 
 // 在断路器中执行的命令对象。
 type Command struct {
 	name string // 名称。
 
-	run      CommandFunc         // 需要运行的功能函数。
-	fallback CommandFallbackFunc // 失败后的善后/提供默认值函数。
+	run      CommandFunc         // 功能函数。
+	fallback CommandFallbackFunc // 降级函数。
 
 	timeout time.Duration // 超时时间。
 
@@ -20,9 +23,8 @@ type Command struct {
 func NewCommand(name string, run CommandFunc, options ...CommandOptionFunc) *Command {
 	command := &Command{
 		name:    name,
-		timeout: time.Second * 10, // 默认超时。
-
-		run: run,
+		run:     run,
+		timeout: time.Second * 10, // 默认超时10s。
 	}
 
 	for _, option := range options {
@@ -41,9 +43,37 @@ func NewCommand(name string, run CommandFunc, options ...CommandOptionFunc) *Com
 	return command
 }
 
-func (command *Command) Execute(params []interface{}) error {
-	// TODO
-	return nil
+// Execute 用于直接执行目标函数。
+func (command *Command) Execute(params []interface{}) ([]interface{}, error) {
+	isOpen, statusMsg := command.breaker.IsOpen()
+
+	// 已经熔断走降级逻辑。
+	if isOpen {
+		openErr := fmt.Errorf("breaker: %s", statusMsg)
+		if command.fallback == nil { // 没有设置降级函数直接返回
+			return nil, openErr
+		}
+		return command.executeFallback(params, openErr) // 降级函数。
+	}
+
+	// 执行目标函数。
+	if result, err := command.run(params); err != nil {
+		return command.executeFallback(result, err) // 降级函数。
+	} else {
+		command.breaker.Success()
+		return result, nil
+	}
+}
+
+// executeFallback 用于执行降级函数。
+func (command *Command) executeFallback(params []interface{}, err error) ([]interface{}, error) {
+	if result, err := command.fallback(params, err); err != nil {
+		command.breaker.FallbackFailure()
+		return result, err
+	} else {
+		command.breaker.FallbackSuccess()
+		return result, nil
+	}
 }
 
 type CommandOptionFunc func(*Command)
@@ -62,7 +92,7 @@ func WithCommandTimeout(timeout time.Duration) CommandOptionFunc {
 	}
 }
 
-// WithCommandBreaker 用于为Command设置失败后的善后/提供默认值函数。
+// WithCommandBreaker 用于为Command设置降级函数。
 func WithCommandFallback(fallback CommandFallbackFunc) CommandOptionFunc {
 	return func(c *Command) {
 		c.fallback = fallback

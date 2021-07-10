@@ -20,8 +20,8 @@ type Metric struct {
 	successCh         chan time.Time // 用于记录一次成功数量统计。
 	timeoutCh         chan time.Time // 用于记录一次超时数量统计
 	failureCh         chan time.Time // 用于记录一次失败数量统计。
-	fallbackSuccessCh chan time.Time // 用于记录一次失败回调执行成功统计。
-	fallbackFailureCh chan time.Time // 用于记录一次失败回调执行失败统计。
+	fallbackSuccessCh chan time.Time // 用于记录一次降级函数执行成功统计。
+	fallbackFailureCh chan time.Time // 用于记录一次降级函数执行失败统计。
 	resetCh           chan time.Time // 用于重置所有统计数据。
 
 	lastExecuteTime time.Time // 最后一次执行时间。
@@ -36,8 +36,8 @@ type UnitCounter struct {
 	Success         int64 // 成功数量。
 	Timeout         int64 // 超时数量。
 	Failure         int64 // 失败数量。
-	FallbackSuccess int64 // 失败回调执行成功数量。
-	FallbackFailure int64 // 失败毁掉执行失败数量。
+	FallbackSuccess int64 // 降级函数执行成功数量。
+	FallbackFailure int64 // 降级函数执行失败数量。
 
 	LastRecordTime time.Time // 记录最后一次写入的时间。
 }
@@ -57,8 +57,8 @@ type HealthSummary struct {
 	Success         int64 // 成功数量。
 	Timeout         int64 // 超时数量。
 	Failure         int64 // 失败数量。
-	FallbackSuccess int64 // 失败回调执行成功数量。
-	FallbackFailure int64 // 失败毁掉执行失败数量。
+	FallbackSuccess int64 // 降级函数执行成功数量。
+	FallbackFailure int64 // 降级函数执行失败数量。
 
 	Total           int64   // 本次统计窗口所执行的所有次数。
 	ErrorPercentage float64 // 错误数量百分比。
@@ -150,12 +150,12 @@ func (metric *Metric) Failure() {
 	metric.failureCh <- time.Now()
 }
 
-// FallbackSuccess 记录一次失败回调执行成功事件。
+// FallbackSuccess 记录一次降级函数执行成功事件。
 func (metric *Metric) FallbackSuccess() {
 	metric.fallbackSuccessCh <- time.Now()
 }
 
-// FallbackFailure 记录一次失败回调执行失败事件。
+// FallbackFailure 记录一次降级函数执行失败事件。
 func (metric *Metric) FallbackFailure() {
 	metric.fallbackFailureCh <- time.Now()
 }

@@ -54,7 +54,7 @@ func (breaker *Breaker) HealthSummary() *internal.HealthSummary {
 }
 
 // IsOpen 判断当前熔断器是否打开。
-func (breaker *Breaker) IsOpen() bool {
+func (breaker *Breaker) IsOpen() (bool, string) {
 	healthSummary := breaker.metric.GetHealthSummary() // 当前健康统计。
 
 	switch breaker.internalStatus {
@@ -62,23 +62,23 @@ func (breaker *Breaker) IsOpen() bool {
 		// 没有满足最小流量要求 或 没有到达错误百分比阈值。
 		if healthSummary.Total < breaker.minRequestThreshold ||
 			healthSummary.ErrorPercentage < breaker.errorThresholdPercentage {
-			return false
+			return false, "closed"
 		}
 		// 开启熔断器，Closed应该不会马上变化为除Open外的其它状态，不过安全起见，还是通过CAS赋值把。
 		atomic.CompareAndSwapInt32(&breaker.internalStatus, Closed, Openning)
-		return true // 无论上面结果如何，都开启。
+		return true, "open" // 无论上面结果如何，都开启。
 
 	case HalfOpening:
-		return true // 半开状态，说明已经有一个请求正在尝试，拒绝所有其它请求。
+		return true, "half-open" // 半开状态，说明已经有一个请求正在尝试，拒绝所有其它请求。
 
 	case Openning:
 		// 判断是否已经达到熔断时间。
 		if time.Since(healthSummary.LastExecuteTime) < breaker.sleepWindow {
-			return true
+			return true, "open"
 		}
 		// 过了休眠时间，设置为半开状态，并放一个请求试试。
 		// 这里可能并发，用个CAS控制，换不到的还是开启，换到的就关闭一次。
-		return !atomic.CompareAndSwapInt32(&breaker.internalStatus, Openning, HalfOpening)
+		return !atomic.CompareAndSwapInt32(&breaker.internalStatus, Openning, HalfOpening), "half-open"
 
 	default:
 		panic("breaker: impossible status")
@@ -114,12 +114,12 @@ func (breaker *Breaker) Timeout() {
 	breaker.metric.Timeout()
 }
 
-// FallbackSuccess 记录一次失败回调执行成功事件。
+// FallbackSuccess 记录一次降级函数执行成功事件。
 func (breaker *Breaker) FallbackSuccess() {
 	breaker.metric.FallbackSuccess()
 }
 
-// FallbackFailure 记录一次失败回调执行失败事件。
+// FallbackFailure 记录一次降级函数执行失败事件。
 func (breaker *Breaker) FallbackFailure() {
 	breaker.metric.FallbackSuccess()
 }
