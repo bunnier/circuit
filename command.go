@@ -62,7 +62,12 @@ func (command *Command) Execute(params []interface{}) ([]interface{}, error) {
 	}
 
 	// 执行目标函数。
+	// TODO: 超时还未处理。
 	if result, err := command.run(params); err != nil {
+		command.breaker.Failure()
+		if command.fallback == nil { // 没有设置降级函数直接返回
+			return nil, err
+		}
 		return command.executeFallback(result, err) // 降级函数。
 	} else {
 		command.breaker.Success()
