@@ -62,15 +62,32 @@ func (command *Command) Execute(params []interface{}) ([]interface{}, error) {
 	}
 
 	// 执行目标函数。
-	// TODO: 超时还未处理。
+	ctx, cancel := context.WithTimeout(context.Background(), command.timeout)
+	defer cancel()
+
+	// 开一个goroutine记录统计数据。
+	resCh := make(chan bool)
+	go func() {
+		select {
+		case <-ctx.Done():
+			command.breaker.Timeout()
+		case res := <-resCh:
+			if res {
+				command.breaker.Success()
+			} else {
+				command.breaker.Failure()
+			}
+		}
+	}()
+
 	if result, err := command.run(params); err != nil {
-		command.breaker.Failure()
+		resCh <- false
 		if command.fallback == nil { // 没有设置降级函数直接返回
 			return nil, err
 		}
 		return command.executeFallback(result, err) // 降级函数。
 	} else {
-		command.breaker.Success()
+		resCh <- true
 		return result, nil
 	}
 }
