@@ -10,8 +10,9 @@ import (
 func TestMetric_Collect(t *testing.T) {
 	metric := NewMetric(WithMetricCounterSize(time.Second * 3)) // 3s的窗口
 
-	const successCount = 600
-	const failureCount = 300
+	// 下面有直接/2，所以这里的数字需要都是偶数。
+	const successCount = 4000
+	const failureCount = 900
 	const timeoutCount = 100
 	const fallbackFailureCount = 20
 	const fallbackSuccessCount = 40
@@ -95,7 +96,7 @@ func doMetricCollect(metric *Metric,
 func validateMetricCollect(t *testing.T, name string, metric *Metric,
 	successCount, failureCount, timeoutCount, fallbackFailureCount, fallbackSuccessCount int,
 	totalCount int64, errorPercentage float64) {
-	summary := metric.GetHealthSummary()
+	summary := metric.Summary()
 	if summary.Success != int64(successCount) {
 		t.Errorf("%s: summary.Success is wrong, want %d, but %d", name, successCount, summary.Success)
 	}

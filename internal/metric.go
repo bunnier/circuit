@@ -51,8 +51,8 @@ func (counter *UnitCounter) Reset() {
 	counter.LastRecordTime = time.Time{}
 }
 
-// HealthSummary 是根据统计信息计算出来的当前健康状态。
-type HealthSummary struct {
+// MetricSummary 返回统计数据摘要。
+type MetricSummary struct {
 	Success         int64 // 成功数量。
 	Timeout         int64 // 超时数量。
 	Failure         int64 // 失败数量。
@@ -95,9 +95,9 @@ func NewMetric(options ...MerticOption) *Metric {
 	return metric
 }
 
-// GetHealthSummary 根据当前统计信息给出健康摘要。
-func (metric *Metric) GetHealthSummary() *HealthSummary {
-	summary := HealthSummary{}
+// Summary 根据当前统计信息给出健康摘要。
+func (metric *Metric) Summary() *MetricSummary {
+	summary := MetricSummary{}
 
 	metric.rwLock.RLock()
 	defer metric.rwLock.RUnlock()

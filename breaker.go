@@ -52,15 +52,16 @@ func NewBreaker(name string, options ...BreakerOption) *Breaker {
 	return breaker
 }
 
-// HealthSummary 返回当前健康状态。
-func (breaker *Breaker) HealthSummary() *internal.HealthSummary {
-	return breaker.metric.GetHealthSummary()
+// IsOpen 判断当前熔断器是否打开。
+// 第一返回值：熔断器是否开启；第二返回值：熔断器状态的文字描述。
+func (breaker *Breaker) IsOpen() (bool, string) {
+	healthSummary := breaker.metric.Summary() // 当前健康统计。
+	return breaker.isOpen(healthSummary)
 }
 
-// IsOpen 判断当前熔断器是否打开。
-func (breaker *Breaker) IsOpen() (bool, string) {
-	healthSummary := breaker.metric.GetHealthSummary() // 当前健康统计。
-
+// isOpen 判断当前熔断器是否打开。
+// 第一返回值：熔断器是否开启；第二返回值：熔断器状态的文字描述。
+func (breaker *Breaker) isOpen(healthSummary *internal.MetricSummary) (bool, string) {
 	switch breaker.internalStatus {
 	case Closed:
 		// 没有满足最小流量要求 或 没有到达错误百分比阈值。
@@ -126,6 +127,22 @@ func (breaker *Breaker) FallbackSuccess() {
 // FallbackFailure 记录一次降级函数执行失败事件。
 func (breaker *Breaker) FallbackFailure() {
 	breaker.metric.FallbackSuccess()
+}
+
+// HealthSummary 表示当前熔断器的整个统计健康状态。
+type HealthSummary struct {
+	*internal.MetricSummary
+	BreakerInfo string
+}
+
+// BreakerSummary 返回当前健康状态。
+func (breaker *Breaker) BreakerSummary() *HealthSummary {
+	healthSummary := breaker.metric.Summary() // 当前健康统计。
+	_, breakerInfo := breaker.isOpen(healthSummary)
+	return &HealthSummary{
+		healthSummary,
+		breakerInfo,
+	}
 }
 
 // BreakerOption 是Breaker的可选项。
