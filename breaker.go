@@ -155,7 +155,7 @@ func WithBreakerMinRequestThreshold(minRequestThreshold int64) BreakerOption {
 	}
 }
 
-// WithBreakderMinRequestThreshold 设置熔断器生效必须满足的最小流量。
+// WithBreakderMinRequestThreshold 设置熔断器生效必须满足的错误百分比。
 func WithBreakerErrorThresholdPercentage(errorThresholdPercentage float64) BreakerOption {
 	return func(breaker *Breaker) {
 		breaker.errorThresholdPercentage = errorThresholdPercentage

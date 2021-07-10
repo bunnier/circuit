@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// TestMetric_Collect 测试数据收集逻辑。
-func TestMetric_Collect(t *testing.T) {
+// TestMetric_workflow 测试数据收集的整个流程逻辑。
+func TestMetric_workflow(t *testing.T) {
 	metric := NewMetric(WithMetricCounterSize(time.Second * 3)) // 3s的窗口
 
 	// 下面有直接/2，所以这里的数字需要都是偶数。
