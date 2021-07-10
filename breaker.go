@@ -166,9 +166,6 @@ func WithBreakerSleepWindow(sleepWindow time.Duration) BreakerOption {
 
 // WithBreakderMinRequestThreshold 设置滑动窗口的大小（要求1-60s）。
 func WithBreakerCounterSize(timeWindow time.Duration) BreakerOption {
-	if timeWindow < time.Second || timeWindow > time.Minute {
-		panic("breaker: timeWindow invalid") // 窗口大小错误属于无法恢复的错误，直接panic把。
-	}
 	return func(breaker *Breaker) {
 		breaker.timeWindow = timeWindow
 	}
