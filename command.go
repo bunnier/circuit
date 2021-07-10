@@ -1,6 +1,7 @@
 package circuit
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
@@ -10,7 +11,8 @@ type CommandFallbackFunc func([]interface{}, error) ([]interface{}, error) // �
 
 // 在断路器中执行的命令对象。
 type Command struct {
-	name string // 名称。
+	cancel context.CancelFunc // 用于释放内部的goroutine。
+	name   string             // 名称。
 
 	run      CommandFunc         // 功能函数。
 	fallback CommandFallbackFunc // 降级函数。
@@ -21,7 +23,9 @@ type Command struct {
 }
 
 func NewCommand(name string, run CommandFunc, options ...CommandOptionFunc) *Command {
+	ctx, cancel := context.WithCancel(context.Background())
 	command := &Command{
+		cancel:  cancel,
 		name:    name,
 		run:     run,
 		timeout: time.Second * 10, // 默认超时10s。
@@ -34,6 +38,7 @@ func NewCommand(name string, run CommandFunc, options ...CommandOptionFunc) *Com
 	// breaker对象比较大，就不在前面设置默认值了。
 	if command.breaker == nil {
 		command.breaker = NewBreaker(name,
+			WithBreakerContext(ctx),
 			WithBreakerCounterSize(5*time.Second),
 			WithBreakerErrorThresholdPercentage(50),
 			WithBreakerMinRequestThreshold(10),
@@ -74,6 +79,11 @@ func (command *Command) executeFallback(params []interface{}, err error) ([]inte
 		command.breaker.FallbackSuccess()
 		return result, nil
 	}
+}
+
+// Close 用于释放整个Command对象内部资源（）。
+func (command *Command) Close() {
+	command.cancel()
 }
 
 type CommandOptionFunc func(*Command)

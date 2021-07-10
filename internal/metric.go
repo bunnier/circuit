@@ -9,8 +9,7 @@ import (
 // Metric 用于保存Command的运行情况统计数据。
 // 内部使用滑动窗口方式存储统计数据。
 type Metric struct {
-	ctx    context.Context    // 执行上下文，主要用于关闭Run中起的goroutine。
-	cancel context.CancelFunc // 保存ctx的cancel函数。
+	ctx context.Context // 用于释放资源的context。
 
 	rwLock sync.RWMutex // 用于同步统计信息的读写操作。
 
@@ -72,10 +71,8 @@ type HealthSummary struct {
 // NewMetric 用于获取一个Metric对象。
 func NewMetric(options ...MerticOption) *Metric {
 	const channelBufferSize int8 = 10 // 用于发送统计数据的channel大小。
-	ctx, cancel := context.WithCancel(context.Background())
 	metric := &Metric{
-		ctx:               ctx,
-		cancel:            cancel,
+		ctx:               context.Background(),
 		rwLock:            sync.RWMutex{},
 		timeWindow:        time.Second * 5, // 默认统计窗口5s。
 		successCh:         make(chan time.Time, channelBufferSize),
@@ -92,6 +89,9 @@ func NewMetric(options ...MerticOption) *Metric {
 
 	// 根据窗口大小初始化统计切片。
 	metric.counters = make([]*UnitCounter, metric.timeWindow/time.Second)
+
+	// 开始接收统计。
+	metric.run()
 	return metric
 }
 
@@ -165,8 +165,8 @@ func (metric *Metric) Reset() {
 	metric.resetCh <- time.Now()
 }
 
-// Run 用于开始统计数据处理。
-func (metric *Metric) Run(ctx context.Context) {
+// run 用于开始统计数据处理。
+func (metric *Metric) run() {
 	go func() {
 		for {
 			select {
@@ -277,6 +277,6 @@ func WithMetricCounterSize(timeWindow time.Duration) MerticOption {
 // WithMetricContext 用于设置一个context，以便优雅退出内部消耗统计信息的gorotine。
 func WithMetricContext(ctx context.Context) MerticOption {
 	return func(metric *Metric) {
-		metric.ctx, metric.cancel = context.WithCancel(ctx)
+		metric.ctx = ctx
 	}
 }

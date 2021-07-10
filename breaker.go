@@ -1,6 +1,7 @@
 package circuit
 
 import (
+	"context"
 	"sync/atomic"
 	"time"
 
@@ -16,6 +17,8 @@ const (
 
 // Breaker 是熔断器结构。
 type Breaker struct {
+	ctx context.Context // 用于释放资源的context。
+
 	name   string           // 名称。
 	metric *internal.Metric // 执行情况统计数据。
 
@@ -30,6 +33,7 @@ type Breaker struct {
 // NewBreaker 用于新建一个熔断器。
 func NewBreaker(name string, options ...BreakerOption) *Breaker {
 	breaker := &Breaker{
+		ctx:                      context.Background(),
 		name:                     name,
 		internalStatus:           Closed, // 默认关闭。
 		minRequestThreshold:      20,     // 默认20个请求起算。
@@ -155,5 +159,12 @@ func WithBreakerCounterSize(timeWindow time.Duration) BreakerOption {
 	}
 	return func(breaker *Breaker) {
 		breaker.timeWindow = timeWindow
+	}
+}
+
+// WithBreakerContext 设置用于释放资源的context。
+func WithBreakerContext(ctx context.Context) BreakerOption {
+	return func(breaker *Breaker) {
+		breaker.ctx = ctx
 	}
 }
