@@ -60,8 +60,15 @@ func executeWithTimeout(command *Command, run CommandFunc) CommandFunc {
 			err error
 		}
 
-		resCh := make(chan resType, 1) // 设置一个1的缓冲，以免超时后goroutine泄漏。
+		panicCh := make(chan interface{}, 1) // 由于放到独立的goroutine中，原本的panic保护会失效，这里做个panic转发，让其回归到原本的goroutine中。
+		resCh := make(chan resType, 1)       // 设置一个1的缓冲，以免超时后goroutine泄漏。
 		go func() {
+			defer func() {
+				if err := recover(); err != nil {
+					panicCh <- err
+				}
+			}()
+
 			res, err := run(param)
 			resCh <- resType{res, err}
 		}()
@@ -70,6 +77,8 @@ func executeWithTimeout(command *Command, run CommandFunc) CommandFunc {
 		case <-time.After(command.timeout):
 			command.breaker.Timeout()
 			return nil, errors.New("command: timeout")
+		case err := <-panicCh:
+			panic(err) // 转发panic。
 		case res := <-resCh:
 			if res.err != nil {
 				command.breaker.Failure()
