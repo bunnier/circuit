@@ -1,12 +1,3 @@
-# circuit
-
-[![Go](https://github.com/bunnier/circuit/actions/workflows/go.yml/badge.svg)](https://github.com/bunnier/circuit/actions/workflows/go.yml)
-
-一个基于窗口计数的轻量级熔断器。
-
-## 代码说话
-
-```go
 package main
 
 import (
@@ -71,4 +62,3 @@ func main() {
 	res, _ = command.Execute([]interface{}{true})
 	fmt.Printf("step4: %s\n", res) // ok
 }
-```
