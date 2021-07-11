@@ -2,6 +2,7 @@ package circuit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -24,10 +25,10 @@ type Command struct {
 
 func NewCommand(name string, run CommandFunc, options ...CommandOptionFunc) *Command {
 	ctx, cancel := context.WithCancel(context.Background())
+
 	command := &Command{
 		cancel:  cancel,
 		name:    name,
-		run:     run,
 		timeout: time.Second * 10, // 默认超时10s。
 	}
 
@@ -45,7 +46,50 @@ func NewCommand(name string, run CommandFunc, options ...CommandOptionFunc) *Com
 			WithBreakerSleepWindow(5*time.Second))
 	}
 
+	// 对run方法包装一层超时处理，由于需要用到参数，在其它参数处理后调用。
+	command.run = executeWithTimeout(command, run)
+
 	return command
+}
+
+// executeWithTimeout 用于对功能函数包装超时处理。
+func executeWithTimeout(command *Command, run CommandFunc) CommandFunc {
+	return func(param []interface{}) ([]interface{}, error) {
+		type resType struct {
+			res []interface{}
+			err error
+		}
+
+		resCh := make(chan resType, 1) // 设置一个1的缓冲，以免超时后goroutine泄漏。
+		go func() {
+			res, err := run(param)
+			resCh <- resType{res, err}
+		}()
+
+		select {
+		case <-time.After(command.timeout):
+			command.breaker.Timeout()
+			return nil, errors.New("command: timeout")
+		case res := <-resCh:
+			if res.err != nil {
+				command.breaker.Failure()
+			} else {
+				command.breaker.Success()
+			}
+			return res.res, res.err
+		}
+	}
+}
+
+// executeFallback 用于执行降级函数。
+func (command *Command) executeFallback(params []interface{}, err error) ([]interface{}, error) {
+	if result, err := command.fallback(params, err); err != nil {
+		command.breaker.FallbackFailure()
+		return result, err
+	} else {
+		command.breaker.FallbackSuccess()
+		return result, nil
+	}
 }
 
 // Execute 用于直接执行目标函数。
@@ -61,44 +105,12 @@ func (command *Command) Execute(params []interface{}) ([]interface{}, error) {
 		return command.executeFallback(params, openErr) // 降级函数。
 	}
 
-	// 执行目标函数。
-	ctx, cancel := context.WithTimeout(context.Background(), command.timeout)
-	defer cancel()
-
-	// 开一个goroutine记录统计数据。
-	resCh := make(chan bool)
-	go func() {
-		select {
-		case <-ctx.Done():
-			command.breaker.Timeout()
-		case res := <-resCh:
-			if res {
-				command.breaker.Success()
-			} else {
-				command.breaker.Failure()
-			}
-		}
-	}()
-
 	if result, err := command.run(params); err != nil {
-		resCh <- false
 		if command.fallback == nil { // 没有设置降级函数直接返回
 			return nil, err
 		}
 		return command.executeFallback(result, err) // 降级函数。
 	} else {
-		resCh <- true
-		return result, nil
-	}
-}
-
-// executeFallback 用于执行降级函数。
-func (command *Command) executeFallback(params []interface{}, err error) ([]interface{}, error) {
-	if result, err := command.fallback(params, err); err != nil {
-		command.breaker.FallbackFailure()
-		return result, err
-	} else {
-		command.breaker.FallbackSuccess()
 		return result, nil
 	}
 }
