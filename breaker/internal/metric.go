@@ -72,7 +72,7 @@ type MetricSummary struct {
 // NewMetric 用于获取一个Metric对象。
 func NewMetric(options ...MerticOption) *Metric {
 	const channelBufferSize int8 = 10 // 用于发送统计数据的channel大小。
-	metric := &Metric{
+	m := &Metric{
 		ctx:               context.Background(),
 		timeWindow:        time.Second * 5, // 默认统计窗口5s。
 		successCh:         make(chan time.Time, channelBufferSize),
@@ -86,27 +86,27 @@ func NewMetric(options ...MerticOption) *Metric {
 	}
 
 	for _, option := range options {
-		option(metric)
+		option(m)
 	}
 
 	// 根据窗口大小初始化统计切片。
-	metric.counters = make([]*UnitCounter, metric.timeWindow/time.Second)
+	m.counters = make([]*UnitCounter, m.timeWindow/time.Second)
 
 	// 开始接收统计。
-	metric.run()
-	return metric
+	m.run()
+	return m
 }
 
-func (metric *Metric) makeSummary() {
+func (m *Metric) makeSummary() {
 	summary := MetricSummary{}
 
-	for _, counter := range metric.counters {
+	for _, counter := range m.counters {
 		if counter == nil {
 			continue
 		}
 
 		// 如果调用不连续，统计块可能有一些不属于本次窗口，所以需要一一判断时间。
-		if time.Since(counter.LastRecordTime) > metric.timeWindow {
+		if time.Since(counter.LastRecordTime) > m.timeWindow {
 			continue
 		}
 
@@ -125,118 +125,118 @@ func (metric *Metric) makeSummary() {
 		summary.ErrorPercentage = float64(summary.Failure) / float64(summary.Total) * 100
 	}
 
-	summary.LastExecuteTime = metric.lastExecuteTime
-	summary.LastSuccessTime = metric.lastSuccessTime
-	summary.LastTimeoutTime = metric.lastTimeoutTime
-	summary.LastFailureTime = metric.lastFailureTime
+	summary.LastExecuteTime = m.lastExecuteTime
+	summary.LastSuccessTime = m.lastSuccessTime
+	summary.LastTimeoutTime = m.lastTimeoutTime
+	summary.LastFailureTime = m.lastFailureTime
 
-	metric.getSummaryCh <- &summary
+	m.getSummaryCh <- &summary
 }
 
 // Summary 根据当前统计信息给出健康摘要。
-func (metric *Metric) Summary() *MetricSummary {
-	metric.makeSummaryCh <- struct{}{}
-	return <-metric.getSummaryCh
+func (m *Metric) Summary() *MetricSummary {
+	m.makeSummaryCh <- struct{}{}
+	return <-m.getSummaryCh
 }
 
 // Success 记录一次成功事件。
-func (metric *Metric) Success() {
-	metric.successCh <- time.Now()
+func (m *Metric) Success() {
+	m.successCh <- time.Now()
 }
 
 // Timeout 记录一次超时事件。
-func (metric *Metric) Timeout() {
-	metric.timeoutCh <- time.Now()
+func (m *Metric) Timeout() {
+	m.timeoutCh <- time.Now()
 }
 
 // Failure 记录一次失败事件。
-func (metric *Metric) Failure() {
-	metric.failureCh <- time.Now()
+func (m *Metric) Failure() {
+	m.failureCh <- time.Now()
 }
 
 // FallbackSuccess 记录一次降级函数执行成功事件。
-func (metric *Metric) FallbackSuccess() {
-	metric.fallbackSuccessCh <- time.Now()
+func (m *Metric) FallbackSuccess() {
+	m.fallbackSuccessCh <- time.Now()
 }
 
 // FallbackFailure 记录一次降级函数执行失败事件。
-func (metric *Metric) FallbackFailure() {
-	metric.fallbackFailureCh <- time.Now()
+func (m *Metric) FallbackFailure() {
+	m.fallbackFailureCh <- time.Now()
 }
 
 // Reset 用于重置所有统计数据。
-func (metric *Metric) Reset() {
-	metric.resetCh <- time.Now()
+func (m *Metric) Reset() {
+	m.resetCh <- time.Now()
 }
 
 // run 用于开始统计数据处理。
-func (metric *Metric) run() {
+func (m *Metric) run() {
 	go func() {
 		for {
 			select {
-			case <-metric.ctx.Done():
+			case <-m.ctx.Done():
 				return // 结束。
-			case now := <-metric.successCh:
-				metric.doSuccess(now)
-			case now := <-metric.timeoutCh:
-				metric.doTimeout(now)
-			case now := <-metric.failureCh:
-				metric.doFailure(now)
-			case now := <-metric.fallbackSuccessCh:
-				metric.doFallbackSuccess(now)
-			case now := <-metric.fallbackFailureCh:
-				metric.doFallbackFailure(now)
-			case now := <-metric.resetCh:
-				metric.doReset(now)
-			case <-metric.makeSummaryCh: // 获取Summary采用收到信号后计算并返回的方式。
-				metric.makeSummary()
+			case now := <-m.successCh:
+				m.doSuccess(now)
+			case now := <-m.timeoutCh:
+				m.doTimeout(now)
+			case now := <-m.failureCh:
+				m.doFailure(now)
+			case now := <-m.fallbackSuccessCh:
+				m.doFallbackSuccess(now)
+			case now := <-m.fallbackFailureCh:
+				m.doFallbackFailure(now)
+			case now := <-m.resetCh:
+				m.doReset(now)
+			case <-m.makeSummaryCh: // 获取Summary采用收到信号后计算并返回的方式。
+				m.makeSummary()
 			}
 		}
 	}()
 }
-func (metric *Metric) doSuccess(now time.Time) {
-	metric.lastExecuteTime = now
-	metric.lastSuccessTime = now
-	metric.getCurrentCounter(now).Success++
+func (m *Metric) doSuccess(now time.Time) {
+	m.lastExecuteTime = now
+	m.lastSuccessTime = now
+	m.getCurrentCounter(now).Success++
 }
 
-func (metric *Metric) doTimeout(now time.Time) {
-	metric.lastExecuteTime = now
-	metric.lastTimeoutTime = now
-	metric.getCurrentCounter(now).Timeout++
-	metric.getCurrentCounter(now).Failure++ // 超时也算失败的一种，这里也将失败加1。
+func (m *Metric) doTimeout(now time.Time) {
+	m.lastExecuteTime = now
+	m.lastTimeoutTime = now
+	m.getCurrentCounter(now).Timeout++
+	m.getCurrentCounter(now).Failure++ // 超时也算失败的一种，这里也将失败加1。
 }
 
-func (metric *Metric) doFailure(now time.Time) {
-	metric.lastExecuteTime = now
-	metric.lastFailureTime = now
-	metric.getCurrentCounter(now).Failure++
+func (m *Metric) doFailure(now time.Time) {
+	m.lastExecuteTime = now
+	m.lastFailureTime = now
+	m.getCurrentCounter(now).Failure++
 }
 
-func (metric *Metric) doFallbackSuccess(now time.Time) {
-	metric.lastExecuteTime = now
-	metric.getCurrentCounter(now).FallbackSuccess++
+func (m *Metric) doFallbackSuccess(now time.Time) {
+	m.lastExecuteTime = now
+	m.getCurrentCounter(now).FallbackSuccess++
 }
 
-func (metric *Metric) doFallbackFailure(now time.Time) {
-	metric.lastExecuteTime = now
-	metric.getCurrentCounter(now).FallbackFailure++
+func (m *Metric) doFallbackFailure(now time.Time) {
+	m.lastExecuteTime = now
+	m.getCurrentCounter(now).FallbackFailure++
 }
 
-func (metric *Metric) doReset(now time.Time) {
-	metric.lastResetTime = now
-	metric.counters = make([]*UnitCounter, metric.timeWindow/time.Second) // 直接新建一个统计量。
+func (m *Metric) doReset(now time.Time) {
+	m.lastResetTime = now
+	m.counters = make([]*UnitCounter, m.timeWindow/time.Second) // 直接新建一个统计量。
 }
 
 // getCurrentCounter 获取当前的统计块。
-func (metric *Metric) getCurrentCounter(now time.Time) *UnitCounter {
+func (m *Metric) getCurrentCounter(now time.Time) *UnitCounter {
 	// 直接把秒取模做数组索引作为当前统计块。
-	index := now.Second() % len(metric.counters)
-	currentCounter := metric.counters[index]
+	index := now.Second() % len(m.counters)
+	currentCounter := m.counters[index]
 
 	if currentCounter == nil {
 		currentCounter = &UnitCounter{}
-		metric.counters[index] = currentCounter
+		m.counters[index] = currentCounter
 	} else {
 		// unix时间戳到秒，只要时间戳不同，说明已经不再同一秒，只是取模后结果相同而已，需要重置。
 		if now.Unix() != currentCounter.LastRecordTime.Unix() {
@@ -249,21 +249,21 @@ func (metric *Metric) getCurrentCounter(now time.Time) *UnitCounter {
 }
 
 // MerticOption 是Mertic的可选项。
-type MerticOption func(metric *Metric)
+type MerticOption func(m *Metric)
 
 // WithMetricCounterSize 设置滑动窗口的大小（单位秒）。
 func WithMetricCounterSize(timeWindow time.Duration) MerticOption {
 	if timeWindow < time.Second || timeWindow > time.Minute {
-		panic("metric: timeWindow invalid") // 窗口大小错误属于无法恢复的错误，直接panic把。
+		panic("m: timeWindow invalid") // 窗口大小错误属于无法恢复的错误，直接panic把。
 	}
-	return func(metric *Metric) {
-		metric.timeWindow = timeWindow
+	return func(m *Metric) {
+		m.timeWindow = timeWindow
 	}
 }
 
 // WithMetricContext 用于设置一个context，以便优雅退出内部消耗统计信息的gorotine。
 func WithMetricContext(ctx context.Context) MerticOption {
-	return func(metric *Metric) {
-		metric.ctx = ctx
+	return func(m *Metric) {
+		m.ctx = ctx
 	}
 }

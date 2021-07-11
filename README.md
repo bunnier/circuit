@@ -4,7 +4,7 @@
 
 ## 简介
 
-基于窗口计数的轻量级熔断器。
+提供能简单处理服务熔断逻辑的工具包。
 
 ## 文档
 
@@ -45,7 +45,7 @@ func main() {
 	}
 
 	// 初始化Command。
-	// 默认参数5s内20次以上，50%失败率后熔断。
+	// 默认参数5s内20次以上，50%失败率后开启熔断器。
 	command := circuit.NewCommand(
 		"test", run,
 		circuit.WithCommandFallback(fallback),
@@ -63,11 +63,11 @@ func main() {
 	}
 	wg.Wait()
 
-	// 窗口期内再来一个错误请求失败就熔断。
+	// 窗口期内再来一个错误请求，开启熔断器。
 	res, _ := command.Execute([]interface{}{false})
 	fmt.Printf("step1: %s\n", res) // fallback。
 
-	// 失败后再模拟10并发个请求，都会直接走降级函数。
+	// 开启熔断器后再模拟10并发个请求，都会直接走降级函数。
 	wg.Add(10)
 	for i := 0; i < 10; i++ {
 		go func() {
@@ -78,18 +78,19 @@ func main() {
 	}
 	wg.Wait()
 
-	// 默认熔断后休息5s进入半熔断。
+	// 熔断器开启5s后进入半开状态。
 	time.Sleep(5 * time.Second)
 
-	// 半熔断期间只会放一个请求进入，其它都还熔断，如果失败，再次熔断。
+	// 默认使用“一刀切”的恢复算法，半开状态下，只能有一个请求进入尝试，通过就重置统计，不通过重新完全开启熔断器。
+	// 这里模拟一个不通过的请求，将重新开启熔断器。
 	_, _ = command.Execute([]interface{}{false})
 	res, _ = command.Execute([]interface{}{true})
 	fmt.Printf("step3: %s\n", res) // fallback。
 
-	// 再次休息5s，再次进入半熔断。
+	// 再次休息5s，再次进入半开状态。
 	time.Sleep(5 * time.Second)
 
-	// 半熔断只要成功，就重置统计。
+	// 半开状态时候请求成功，将重置统计。
 	_, _ = command.Execute([]interface{}{true})
 
 	// 重置后模拟10个并发成功请求，都被会执行～

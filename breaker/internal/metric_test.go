@@ -8,7 +8,7 @@ import (
 
 // TestMetric_workflow 测试数据收集的整个流程逻辑。
 func TestMetric_workflow(t *testing.T) {
-	metric := NewMetric(WithMetricCounterSize(time.Second * 3)) // 3s的窗口
+	m := NewMetric(WithMetricCounterSize(time.Second * 3)) // 3s的窗口
 
 	// 下面有直接/2，所以这里的数字需要都是偶数。
 	const successCount = 4000
@@ -24,79 +24,79 @@ func TestMetric_workflow(t *testing.T) {
 
 	// 分2批写入数据，让数据分散在不同滑块。
 	// 每次写入应该都是几毫秒。
-	doMetricCollect(metric, successCount/2, failureCount/2, timeoutCount/2, fallbackFailureCount/2, fallbackSuccessCount/2)
+	doMetricCollect(m, successCount/2, failureCount/2, timeoutCount/2, fallbackFailureCount/2, fallbackSuccessCount/2)
 	time.Sleep(time.Second)
-	doMetricCollect(metric, successCount/2, failureCount/2, timeoutCount/2, fallbackFailureCount/2, fallbackSuccessCount/2)
+	doMetricCollect(m, successCount/2, failureCount/2, timeoutCount/2, fallbackFailureCount/2, fallbackSuccessCount/2)
 
 	// 此时时间窗口肯定还没到，验证数据，应该满血。
-	validateMetricCollect(t, "case1", metric,
+	validateMetricCollect(t, "case1", m,
 		successCount, failureCount, timeoutCount, fallbackFailureCount, fallbackSuccessCount,
 		totalCount, errorPercentage)
 
 	time.Sleep(time.Second * 2) // 这个时间后已经最早的滑块应该刚好清0。
 
-	validateMetricCollect(t, "case2", metric,
+	validateMetricCollect(t, "case2", m,
 		successCount/2, failureCount/2, timeoutCount/2, fallbackFailureCount/2, fallbackSuccessCount/2,
 		totalCount/2, errorPercentage)
 
 	time.Sleep(time.Second * 1) // 这个时间后一定已经清0。
 
 	// 验证数据
-	validateMetricCollect(t, "case3", metric, 0, 0, 0, 0, 0, 0, 0)
+	validateMetricCollect(t, "case3", m, 0, 0, 0, 0, 0, 0, 0)
 
 	// 再写一次数据，来验证Reset。
-	doMetricCollect(metric, successCount, failureCount, timeoutCount, fallbackFailureCount, fallbackSuccessCount)
+	doMetricCollect(m, successCount, failureCount, timeoutCount, fallbackFailureCount, fallbackSuccessCount)
 	time.Sleep(time.Second) // 确保数据写完了。
-	metric.Reset()
+	m.Reset()
 	time.Sleep(time.Second) // 确保数据写完了。
-	validateMetricCollect(t, "case4", metric, 0, 0, 0, 0, 0, 0, 0)
+	validateMetricCollect(t, "case4", m, 0, 0, 0, 0, 0, 0, 0)
 }
 
-func doMetricCollect(metric *Metric,
+func doMetricCollect(m *Metric,
 	successCount, failureCount, timeoutCount, fallbackFailureCount, fallbackSuccessCount int) {
 	var wg sync.WaitGroup
 	for i := 0; i < successCount; i++ {
 		wg.Add(1)
 		go func() {
-			metric.Success()
+			m.Success()
 			wg.Done()
 		}()
 	}
 	for i := 0; i < failureCount; i++ {
 		wg.Add(1)
 		go func() {
-			metric.Failure()
+			m.Failure()
 			wg.Done()
 		}()
 	}
 	for i := 0; i < timeoutCount; i++ {
 		wg.Add(1)
 		go func() {
-			metric.Timeout()
+			m.Timeout()
 			wg.Done()
 		}()
 	}
 	for i := 0; i < fallbackFailureCount; i++ {
 		wg.Add(1)
 		go func() {
-			metric.FallbackFailure()
+			m.FallbackFailure()
 			wg.Done()
 		}()
 	}
 	for i := 0; i < fallbackSuccessCount; i++ {
 		wg.Add(1)
 		go func() {
-			metric.FallbackSuccess()
+			m.FallbackSuccess()
 			wg.Done()
 		}()
 	}
 	wg.Wait()
 }
 
-func validateMetricCollect(t *testing.T, name string, metric *Metric,
+func validateMetricCollect(t *testing.T, name string, m *Metric,
 	successCount, failureCount, timeoutCount, fallbackFailureCount, fallbackSuccessCount int,
 	totalCount int64, errorPercentage float64) {
-	summary := metric.Summary()
+	summary := m.Summary()
 	if summary.Success != int64(successCount) {
 		t.Errorf("%s: summary.Success is wrong, want %d, but %d", name, successCount, summary.Success)
 	}

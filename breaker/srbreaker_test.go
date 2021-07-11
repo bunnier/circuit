@@ -1,20 +1,20 @@
-package circuit
+package breaker
 
 import (
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/bunnier/circuit/internal"
+	"github.com/bunnier/circuit/breaker/internal"
 )
 
-// TestBreaker_isOpen 测试熔断器的状态判断逻辑。
-func TestBreaker_isOpen(t *testing.T) {
+// TestBreaker_allow 测试熔断器的状态判断逻辑。
+func TestBreaker_allow(t *testing.T) {
 	tests := []struct {
 		name                  string
 		healthSummary         *internal.MetricSummary
 		breakerInternalStatus int32
-		isOpen                bool
+		allow                 bool
 		statusString          string
 	}{
 		{"case1", &internal.MetricSummary{
@@ -29,7 +29,7 @@ func TestBreaker_isOpen(t *testing.T) {
 			LastSuccessTime: time.Now(),
 			LastTimeoutTime: time.Now(),
 			LastFailureTime: time.Now(),
-		}, Closed, true, "open"},
+		}, Closed, false, "open"},
 		{"case2", &internal.MetricSummary{
 			Success:         0,
 			Timeout:         4,
@@ -42,7 +42,7 @@ func TestBreaker_isOpen(t *testing.T) {
 			LastSuccessTime: time.Now(),
 			LastTimeoutTime: time.Now(),
 			LastFailureTime: time.Now(),
-		}, Closed, false, "closed"},
+		}, Closed, true, "closed"},
 		{"case3", &internal.MetricSummary{
 			Success:         0,
 			Timeout:         4,
@@ -55,7 +55,7 @@ func TestBreaker_isOpen(t *testing.T) {
 			LastSuccessTime: time.Now(),
 			LastTimeoutTime: time.Now(),
 			LastFailureTime: time.Now(),
-		}, HalfOpening, true, "half-open"},
+		}, HalfOpening, false, "half-open"},
 		{"case4", &internal.MetricSummary{
 			Success:         0,
 			Timeout:         5,
@@ -68,7 +68,7 @@ func TestBreaker_isOpen(t *testing.T) {
 			LastSuccessTime: time.Now(),
 			LastTimeoutTime: time.Now(),
 			LastFailureTime: time.Now(),
-		}, Openning, false, "half-open"},
+		}, Openning, true, "half-open"},
 		{"case5", &internal.MetricSummary{
 			Success:         0,
 			Timeout:         5,
@@ -81,23 +81,23 @@ func TestBreaker_isOpen(t *testing.T) {
 			LastSuccessTime: time.Now(),
 			LastTimeoutTime: time.Now(),
 			LastFailureTime: time.Now(),
-		}, Openning, true, "open"},
+		}, Openning, false, "open"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			breaker := NewBreaker(tt.name,
-				WithBreakerCounterSize(5*time.Second),
-				WithBreakerErrorThresholdPercentage(50),
-				WithBreakerMinRequestThreshold(20),
-				WithBreakerSleepWindow(5*time.Second))
+			breaker := NewCutBreaker(tt.name,
+				WithCutBreakerTimeWindow(5*time.Second),
+				WithCutBreakerErrorThresholdPercentage(50),
+				WithCutBreakerMinRequestThreshold(20),
+				WithCutBreakerSleepWindow(5*time.Second))
 			breaker.internalStatus = tt.breakerInternalStatus
 
-			got, got1 := breaker.isOpen(tt.healthSummary)
-			if got != tt.isOpen {
-				t.Errorf("Breaker.isOpen() got = %v, want %v", got, tt.isOpen)
+			got, got1 := breaker.allow(tt.healthSummary)
+			if got != tt.allow {
+				t.Errorf("Breaker.allow() got = %v, want %v", got, tt.allow)
 			}
 			if got1 != tt.statusString {
-				t.Errorf("Breaker.isOpen() got1 = %v, want %v", got1, tt.statusString)
+				t.Errorf("Breaker.allow() got1 = %v, want %v", got1, tt.statusString)
 			}
 		})
 	}
@@ -105,11 +105,11 @@ func TestBreaker_isOpen(t *testing.T) {
 
 // TestBreaker_workflow 测试熔断器的完整工作流程。
 func TestBreaker_workflow(t *testing.T) {
-	breaker := NewBreaker("test",
-		WithBreakerCounterSize(5*time.Second),
-		WithBreakerErrorThresholdPercentage(50),
-		WithBreakerMinRequestThreshold(20),
-		WithBreakerSleepWindow(2*time.Second))
+	breaker := NewCutBreaker("test",
+		WithCutBreakerTimeWindow(5*time.Second),
+		WithCutBreakerErrorThresholdPercentage(50),
+		WithCutBreakerMinRequestThreshold(20),
+		WithCutBreakerSleepWindow(2*time.Second))
 
 	var wg sync.WaitGroup
 	for i := 0; i < 1000; i++ {
@@ -129,39 +129,39 @@ func TestBreaker_workflow(t *testing.T) {
 	wg.Wait()
 
 	// 此时应还是关闭。
-	if isOpen, _ := breaker.IsOpen(); isOpen {
-		t.Errorf("Breaker.IsOpen() got = %v, want %v", isOpen, false)
+	if pass, _ := breaker.Allow(); !pass {
+		t.Errorf("Breaker.Allow() got = %v, want %v", pass, true)
 	}
 
 	breaker.Timeout()
 	// 此时应该开启了。
-	if isOpen, _ := breaker.IsOpen(); !isOpen {
-		t.Errorf("Breaker.IsOpen() got = %v, want %v", isOpen, true)
+	if pass, _ := breaker.Allow(); pass {
+		t.Errorf("Breaker.Allow() got = %v, want %v", pass, false)
 	}
 
 	time.Sleep(2 * time.Second)
 	// 睡眠期结束，应该可以进入半熔断了。
-	if isOpen, statusMsg := breaker.IsOpen(); isOpen {
-		t.Errorf("Breaker.IsOpen() got = %v, want %v", isOpen, false)
+	if pass, statusMsg := breaker.Allow(); !pass {
+		t.Errorf("Breaker.Allow() got = %v, want %v", pass, true)
 	} else if statusMsg != "half-open" {
-		t.Errorf("Breaker.IsOpen() got = %v, want %v", statusMsg, "half-open")
+		t.Errorf("Breaker.Allow() got = %v, want %v", statusMsg, "half-open")
 	}
 
 	breaker.Failure() // 半熔断状态失败，再次进入熔断。
-	if isOpen, _ := breaker.IsOpen(); !isOpen {
-		t.Errorf("Breaker.IsOpen() got = %v, want %v", isOpen, true)
+	if pass, _ := breaker.Allow(); pass {
+		t.Errorf("Breaker.Allow() got = %v, want %v", pass, false)
 	}
 
 	time.Sleep(2 * time.Second)
 	// 睡眠期结束，应该可以进入半熔断了。
-	if isOpen, statusMsg := breaker.IsOpen(); isOpen {
-		t.Errorf("Breaker.IsOpen() got = %v, want %v", isOpen, false)
+	if pass, statusMsg := breaker.Allow(); !pass {
+		t.Errorf("Breaker.Allow() got = %v, want %v", pass, true)
 	} else if statusMsg != "half-open" {
-		t.Errorf("Breaker.IsOpen() got = %v, want %v", statusMsg, "half-open")
+		t.Errorf("Breaker.Allow() got = %v, want %v", statusMsg, "half-open")
 	}
 
 	breaker.Success() // 半熔断状态成功，关闭熔断器。
-	if isOpen, _ := breaker.IsOpen(); isOpen {
-		t.Errorf("Breaker.IsOpen() got = %v, want %v", isOpen, false)
+	if pass, _ := breaker.Allow(); !pass {
+		t.Errorf("Breaker.Allow() got = %v, want %v", pass, true)
 	}
 }

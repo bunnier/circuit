@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/bunnier/circuit/breaker"
 )
 
 type CommandFunc func([]interface{}) ([]interface{}, error)                // 功能函数签名。
@@ -20,7 +22,7 @@ type Command struct {
 
 	timeout time.Duration // 超时时间。
 
-	breaker *Breaker // 熔断器。
+	breaker breaker.Breaker // 熔断器。
 }
 
 func NewCommand(name string, run CommandFunc, options ...CommandOptionFunc) *Command {
@@ -38,12 +40,12 @@ func NewCommand(name string, run CommandFunc, options ...CommandOptionFunc) *Com
 
 	// breaker对象比较大，就不在前面设置默认值了。
 	if command.breaker == nil {
-		command.breaker = NewBreaker(name,
-			WithBreakerContext(ctx),
-			WithBreakerCounterSize(5*time.Second),
-			WithBreakerErrorThresholdPercentage(50),
-			WithBreakerMinRequestThreshold(10),
-			WithBreakerSleepWindow(5*time.Second))
+		command.breaker = breaker.NewCutBreaker(name,
+			breaker.WithCutBreakerContext(ctx),
+			breaker.WithCutBreakerTimeWindow(5*time.Second),
+			breaker.WithCutBreakerErrorThresholdPercentage(50),
+			breaker.WithCutBreakerMinRequestThreshold(10),
+			breaker.WithCutBreakerSleepWindow(5*time.Second))
 	}
 
 	// 对run方法包装一层超时处理，由于需要用到参数，在其它参数处理后调用。
@@ -103,10 +105,10 @@ func (command *Command) executeFallback(params []interface{}, err error) ([]inte
 
 // Execute 用于直接执行目标函数。
 func (command *Command) Execute(params []interface{}) ([]interface{}, error) {
-	isOpen, statusMsg := command.breaker.IsOpen()
+	pass, statusMsg := command.breaker.Allow()
 
 	// 已经熔断走降级逻辑。
-	if isOpen {
+	if !pass {
 		openErr := fmt.Errorf("breaker: %s", statusMsg)
 		if command.fallback == nil { // 没有设置降级函数直接返回
 			return nil, openErr
@@ -132,7 +134,7 @@ func (command *Command) Close() {
 type CommandOptionFunc func(*Command)
 
 // WithCommandBreaker 用于为Command设置熔断器。
-func WithCommandBreaker(breaker *Breaker) CommandOptionFunc {
+func WithCommandBreaker(breaker breaker.Breaker) CommandOptionFunc {
 	return func(c *Command) {
 		c.breaker = breaker
 	}
