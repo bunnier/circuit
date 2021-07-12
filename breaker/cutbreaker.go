@@ -83,7 +83,7 @@ func (b *CutBreaker) allow(healthSummary *internal.MetricSummary) (bool, string)
 		return atomic.CompareAndSwapInt32(&b.internalStatus, Openning, HalfOpening), "half-open"
 
 	default:
-		panic("b: impossible status")
+		panic("breaker: impossible status")
 	}
 }
 

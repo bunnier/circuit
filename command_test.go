@@ -47,13 +47,13 @@ func TestCommand_workflow(t *testing.T) {
 	}
 
 	// 再一个熔断。
-	if _, err := command.Execute([]interface{}{10001}); err == nil || err.Error() != "fallback: breaker: open" {
-		t.Errorf("Command.Execute() got = %v, want %v", err, "fallback: breaker: open")
+	if _, err := command.Execute([]interface{}{10001}); err == nil || err.Error() != "fallback: test: open: command: unavailable" {
+		t.Errorf("Command.Execute() got = %v, want %v", err, "fallback: test: open: command: unavailable")
 	}
 
 	// 熔断中，正常的也熔断。
-	if _, err := command.Execute([]interface{}{1}); err == nil || err.Error() != "fallback: breaker: open" {
-		t.Errorf("Command.Execute() got = %v, want %v", err, "fallback: breaker: open")
+	if _, err := command.Execute([]interface{}{1}); err == nil || err.Error() != "fallback: test: open: command: unavailable" {
+		t.Errorf("Command.Execute() got = %v, want %v", err, "fallback: test: open: command: unavailable")
 	}
 
 	time.Sleep(5 * time.Second)
@@ -62,8 +62,8 @@ func TestCommand_workflow(t *testing.T) {
 		t.Errorf("Command.Execute() got = %v, want %v", err, "fallback: more then 5000")
 	}
 	// 由于刚放了个错误的进行半熔断测试，又恢复熔断了。
-	if _, err := command.Execute([]interface{}{1}); err == nil || err.Error() != "fallback: breaker: open" {
-		t.Errorf("Command.Execute() got = %v, want %v", err, "fallback: breaker: open")
+	if _, err := command.Execute([]interface{}{1}); err == nil || err.Error() != "fallback: test: open: command: unavailable" {
+		t.Errorf("Command.Execute() got = %v, want %v", err, "fallback: test: open: command: unavailable")
 	}
 
 	time.Sleep(5 * time.Second)

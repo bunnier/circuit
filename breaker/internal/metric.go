@@ -254,7 +254,7 @@ type MerticOption func(m *Metric)
 // WithMetricCounterSize 设置滑动窗口的大小（单位秒）。
 func WithMetricCounterSize(timeWindow time.Duration) MerticOption {
 	if timeWindow < time.Second || timeWindow > time.Minute {
-		panic("m: timeWindow invalid") // 窗口大小错误属于无法恢复的错误，直接panic把。
+		panic("metric: timeWindow invalid") // 窗口大小错误属于无法恢复的错误，直接panic把。
 	}
 	return func(m *Metric) {
 		m.timeWindow = timeWindow

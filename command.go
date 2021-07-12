@@ -12,6 +12,9 @@ import (
 type CommandFunc func([]interface{}) ([]interface{}, error)                // 功能函数签名。
 type CommandFallbackFunc func([]interface{}, error) ([]interface{}, error) // 降级函数签名。
 
+var ErrTimeout error = errors.New("command: timeout")      // 服务执行超时。
+var ErrFallback error = errors.New("command: unavailable") // 服务不可用（熔断器开启后返回）。
+
 // 在断路器中执行的命令对象。
 type Command struct {
 	cancel context.CancelFunc // 用于释放内部的goroutine。
@@ -78,9 +81,9 @@ func executeWithTimeout(command *Command, run CommandFunc) CommandFunc {
 		select {
 		case <-time.After(command.timeout):
 			command.breaker.Timeout()
-			return nil, errors.New("command: timeout")
+			return nil, fmt.Errorf("%s: %w", command.name, ErrTimeout)
 		case err := <-panicCh:
-			panic(err) // 转发panic。
+			panic(err) // 接收goroutine转发过来的panic。
 		case res := <-resCh:
 			if res.err != nil {
 				command.breaker.Failure()
@@ -109,7 +112,7 @@ func (command *Command) Execute(params []interface{}) ([]interface{}, error) {
 
 	// 已经熔断走降级逻辑。
 	if !pass {
-		openErr := fmt.Errorf("breaker: %s", statusMsg)
+		openErr := fmt.Errorf("%s: %s: %w", command.name, statusMsg, ErrFallback)
 		if command.fallback == nil { // 没有设置降级函数直接返回
 			return nil, openErr
 		}
