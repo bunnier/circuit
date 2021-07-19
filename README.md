@@ -6,16 +6,18 @@
 
 提供能简单处理服务熔断逻辑的工具包。
 
-## 文档
+## GoDoc
 
 <https://pkg.go.dev/github.com/bunnier/circuit@v1.0.3>
 
-## 未来
+## 熔断器
 
-- 提供一个通过反射包装普通函数为 Command 需要的功能函数的工具函数;
-- 支持限流功能;
-- 提供订阅状态变化的hook;
-- 提供状态观察接口（接入hystrix-dashboard？）;
+可在初始化`Command`时候设置依赖的熔断器，熔断器的主接口为`Breaker`，目前实现了两个熔断器实现供选择：
+
+- `CutBreaker`（默认）：提供了常规的断路器模式（一刀切）的熔断器实现；
+- `SreBreaker`：提供了Google SRE提出的Handling Overload算法实现的弹性熔断器，[算法细节](https://sre.google/sre-book/handling-overload/#eq2101)；
+
+两套算法内部使用同一个滑动窗口计算其实现。
 
 ## 使用
 
@@ -115,3 +117,9 @@ func main() {
 }
 ```
 
+## 未来
+
+- 提供一个通过反射包装普通函数为 Command 需要的功能函数的工具函数;
+- 支持限流功能;
+- 提供订阅状态变化的hook;
+- 提供状态观察接口（接入hystrix-dashboard？）;
