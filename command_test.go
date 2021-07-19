@@ -25,6 +25,7 @@ func TestCommand_workflow(t *testing.T) {
 
 	// 初始化Command。
 	command := NewCommand("test", run, WithCommandFallback(fallback))
+	defer command.Close()
 
 	for i := 0; i < 10000; i++ {
 		r, err := command.Execute([]interface{}{i})

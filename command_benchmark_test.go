@@ -24,6 +24,7 @@ func BenchmarkDirectly(b *testing.B) {
 
 func BenchmarkCommand(b *testing.B) {
 	command := NewCommand("test", wrapRun)
+	defer command.Close()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		command.Execute(nil)
@@ -41,6 +42,7 @@ func BenchmarkParallelDirectly(b *testing.B) {
 
 func BenchmarkParallelCommand(b *testing.B) {
 	command := NewCommand("test", wrapRun)
+	defer command.Close()
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {

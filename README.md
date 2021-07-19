@@ -59,6 +59,8 @@ func main() {
 		circuit.WithCommandFallback(fallback),
 		circuit.WithCommandTimeout(time.Second*5))
 
+	defer command.Close() // 主要用于释放command中开启的统计goroutine。
+	
 	var wg sync.WaitGroup
 
 	// 模拟20次请求，10个成功，10个失败，让其刚好到临界。
