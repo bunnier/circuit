@@ -8,7 +8,7 @@
 
 ## 文档
 
-<https://pkg.go.dev/github.com/bunnier/circuit>
+<https://pkg.go.dev/github.com/bunnier/circuit@v1.0.2>
 
 ## 使用
 
