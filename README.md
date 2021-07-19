@@ -105,3 +105,9 @@ func main() {
 	wg.Wait()
 }
 ```
+
+## TODO
+
+- 提供一个通过反射包装普通函数为 Command 需要的功能函数的函数。
+- 支持限流功能；
+- 新增一个 GoogleSRE 弹性熔断算法实现的 breaker；
