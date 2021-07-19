@@ -36,7 +36,7 @@ func NewSreBreaker(name string, options ...SreBreakerOption) *SreBreaker {
 		name: name,
 
 		k:        1.5, // 算法的调节系数，越高算法越懒惰，反之越主动。
-		rand:     &rand.Rand{},
+		rand:     rand.New(rand.NewSource(time.Now().Unix())),
 		randLock: &sync.Mutex{},
 
 		timeWindow: 5,
@@ -55,14 +55,20 @@ func NewSreBreaker(name string, options ...SreBreakerOption) *SreBreaker {
 // Allow 用于判断断路器是否允许通过请求。
 // 第一返回值：true能通过/false不能；第二返回值：当前Breaker状态的文字描述。
 func (b *SreBreaker) Allow() (bool, string) {
+	summary := b.metric.Summary()
+	return b.allow(summary)
+}
+
+// Allow 用于判断断路器是否允许通过请求。
+// 第一返回值：true能通过/false不能；第二返回值：当前Breaker状态的文字描述。
+func (b *SreBreaker) allow(summary *internal.MetricSummary) (bool, string) {
 	b.randLock.Lock()
-	rf := b.rand.Float64() // 计算本次概率。
+	currentProb := b.rand.Float64() // 计算本次概率。
 	b.randLock.Unlock()
 
-	summary := b.metric.Summary()
-	prob := b.getRejectionProbability(summary) // 当前熔断概率。
+	rejectProb := b.getRejectionProbability(summary) // 当前熔断概率。
 
-	return rf < prob, fmt.Sprintf("rejection probability = %3.3f, this time = %3.3f", prob, rf)
+	return currentProb > rejectProb, fmt.Sprintf("rejection probability = %3.3f, this time = %3.3f", rejectProb, currentProb)
 }
 
 // getRejectionProbability 用于计算当前请求的熔断概率。
