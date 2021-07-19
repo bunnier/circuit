@@ -121,12 +121,6 @@ func (b *CutBreaker) FallbackFailure() {
 	b.metric.FallbackSuccess()
 }
 
-// HealthSummary 表示当前熔断器的整个统计健康状态。
-type HealthSummary struct {
-	*internal.MetricSummary
-	BreakerInfo string
-}
-
 // Summary 返回当前健康状态。
 func (b *CutBreaker) Summary() *BreakerSummary {
 	healthSummary := b.metric.Summary() // 当前健康统计。
