@@ -6,20 +6,18 @@
 
 提供能简单处理服务熔断逻辑的工具包。
 
-## GoDoc
+本工具包主要通过`Command`对象交互，可通过`circuit.NewCommand` 函数获取一个 `Command`对象，通过该对象的`Execute`方法即可在熔断器上执行设置的功能函数。
+
+初始化 `Command` 时可设置熔断器算法，熔断器的主接口为`Breaker`，包中目前内置了两个熔断器供选择：
+
+- `CutBreaker`（默认）：提供了常规的断路器模式的熔断器实现。即维护 `Open`、`half-Open`、`Closed` 3个状态，错误率达到阈值后`Open`，`Open`后休眠指定时间转变为`half-Open`，之后允许一个请求探测，如恢复正常，则`Closed`，反之重新进入`Open`；
+- `SreBreaker`：提供了Google SRE提出的Handling Overload算法实现的弹性熔断器。算法介绍参考：<https://sre.google/sre-book/handling-overload/#eq2101>；
+
+## 文档
 
 <https://pkg.go.dev/github.com/bunnier/circuit>
 
-## 熔断器
-
-可在初始化`Command`时候设置依赖的熔断器，熔断器的主接口为`Breaker`，目前实现了两个熔断器实现供选择：
-
-- `CutBreaker`（默认）：提供了常规的断路器模式（一刀切）的熔断器实现；
-- `SreBreaker`：提供了Google SRE提出的Handling Overload算法实现的弹性熔断器，[算法细节](https://sre.google/sre-book/handling-overload/#eq2101)；
-
-两套算法内部使用同一个滑动窗口计算其实现。
-
-## 使用
+## DEMO
 
 ```go
 package main
@@ -117,7 +115,7 @@ func main() {
 }
 ```
 
-## 未来
+## 下一步
 
 - 提供一个通过反射包装普通函数为 Command 需要的功能函数的工具函数;
 - 支持限流功能;
