@@ -8,13 +8,12 @@
 
 ## 文档
 
-<https://pkg.go.dev/github.com/bunnier/circuit@v1.0.2>
+<https://pkg.go.dev/github.com/bunnier/circuit@v1.0.3>
 
 ## 未来
 
 - 提供一个通过反射包装普通函数为 Command 需要的功能函数的工具函数;
 - 支持限流功能;
-- 新增一个 GoogleSRE 弹性熔断算法实现的 breaker;
 - 提供订阅状态变化的hook;
 - 提供状态观察接口（接入hystrix-dashboard？）;
 
@@ -60,7 +59,7 @@ func main() {
 		circuit.WithCommandTimeout(time.Second*5))
 
 	defer command.Close() // 主要用于释放command中开启的统计goroutine。
-	
+
 	var wg sync.WaitGroup
 
 	// 模拟20次请求，10个成功，10个失败，让其刚好到临界。
@@ -91,7 +90,7 @@ func main() {
 	// 熔断器开启5s后进入半开状态。
 	time.Sleep(5 * time.Second)
 
-	// 默认使用“一刀切”的恢复算法，半开状态下，只能有一个请求进入尝试，通过就重置统计，不通过重新完全开启熔断器。
+	// 默认使用“一刀切”的恢复算法（另外提供了Google SRE中提到的概率熔断算法可以在初始化时候切换），半开状态下，只能有一个请求进入尝试，通过就重置统计，不通过重新完全开启熔断器。
 	// 这里模拟一个不通过的请求，将重新开启熔断器。
 	_, _ = command.Execute([]interface{}{false})
 	res, _ = command.Execute([]interface{}{true})
