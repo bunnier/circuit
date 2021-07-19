@@ -3,6 +3,7 @@ package breaker
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
 	"sync"
 	"time"
@@ -67,7 +68,8 @@ func (b *SreBreaker) Allow() (bool, string) {
 // getRejectionProbability 用于计算当前请求的熔断概率。
 func (b *SreBreaker) getRejectionProbability(summary *internal.MetricSummary) float64 {
 	// 算法参考：https://sre.google/sre-book/handling-overload/#eq2101
-	return (float64(summary.Total) - b.k*float64(summary.Success)) / float64(summary.Total+1)
+	prob := (float64(summary.Total) - b.k*float64(summary.Success)) / float64(summary.Total+1)
+	return math.Max(0, prob)
 }
 
 // Success 用于记录成功事件。
