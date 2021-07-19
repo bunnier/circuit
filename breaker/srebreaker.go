@@ -23,8 +23,7 @@ type SreBreaker struct {
 	rand     *rand.Rand  // 随机数生成器。
 	randLock *sync.Mutex // 用于控制随机数生成时候的并发。
 
-	sleepWindow time.Duration // 熔断后重置熔断器的时间窗口。
-	timeWindow  time.Duration // 滑动窗口的大小（单位秒1-60）。
+	timeWindow time.Duration // 滑动窗口的大小（单位秒1-60）。
 }
 
 // NewSreBreaker 用于新建一个 SreBreaker 熔断器。
@@ -39,8 +38,7 @@ func NewSreBreaker(name string, options ...SreBreakerOption) *SreBreaker {
 		rand:     &rand.Rand{},
 		randLock: &sync.Mutex{},
 
-		sleepWindow: time.Second * 5,
-		timeWindow:  5,
+		timeWindow: 5,
 	}
 
 	for _, option := range options {
@@ -63,7 +61,7 @@ func (b *SreBreaker) Allow() (bool, string) {
 	summary := b.metric.Summary()
 	prob := b.getRejectionProbability(summary) // 当前熔断概率。
 
-	return rf < prob, fmt.Sprintf("rejection probability = %3.2f, this time = %3.2f", prob, rf)
+	return rf < prob, fmt.Sprintf("rejection probability = %3.3f, this time = %3.3f", prob, rf)
 }
 
 // getRejectionProbability 用于计算当前请求的熔断概率。
@@ -101,7 +99,7 @@ func (b *SreBreaker) FallbackFailure() {
 func (b *SreBreaker) Summary() *BreakerSummary {
 	summary := b.metric.Summary() // 当前健康统计。
 	return &BreakerSummary{
-		Status:          fmt.Sprintf("current rejection probability: %3.2f", b.getRejectionProbability(summary)), // 直接显示概率
+		Status:          fmt.Sprintf("current rejection probability: %3.3f", b.getRejectionProbability(summary)), // 直接显示概率
 		Success:         summary.Success,
 		Timeout:         summary.Timeout,
 		Failure:         summary.Failure,
@@ -118,13 +116,6 @@ func (b *SreBreaker) Summary() *BreakerSummary {
 
 // SreBreakerOption 是 SreBreaker 的可选项。
 type SreBreakerOption func(b *SreBreaker)
-
-// WithSreBreakerSleepWindow 设置熔断后重置熔断器的时间窗口。
-func WithSreBreakerSleepWindow(sleepWindow time.Duration) SreBreakerOption {
-	return func(b *SreBreaker) {
-		b.sleepWindow = sleepWindow
-	}
-}
 
 // WithSreBreakerTimeWindow 设置滑动窗口的大小（要求1-60s）。
 func WithSreBreakerTimeWindow(timeWindow time.Duration) SreBreakerOption {

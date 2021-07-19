@@ -8,8 +8,8 @@ import (
 	"github.com/bunnier/circuit/breaker/internal"
 )
 
-// TestBreaker_allow 测试熔断器的状态判断逻辑。
-func TestBreaker_allow(t *testing.T) {
+// TestCutBreaker_allow 测试熔断器的状态判断逻辑。
+func TestCutBreaker_allow(t *testing.T) {
 	tests := []struct {
 		name                  string
 		healthSummary         *internal.MetricSummary
@@ -94,17 +94,17 @@ func TestBreaker_allow(t *testing.T) {
 
 			got, got1 := breaker.allow(tt.healthSummary)
 			if got != tt.allow {
-				t.Errorf("Breaker.allow() got = %v, want %v", got, tt.allow)
+				t.Errorf("CutBreaker.allow() got = %v, want %v", got, tt.allow)
 			}
 			if got1 != tt.statusString {
-				t.Errorf("Breaker.allow() got1 = %v, want %v", got1, tt.statusString)
+				t.Errorf("CutBreaker.allow() got1 = %v, want %v", got1, tt.statusString)
 			}
 		})
 	}
 }
 
-// TestBreaker_workflow 测试熔断器的完整工作流程。
-func TestBreaker_workflow(t *testing.T) {
+// TestCutBreaker_workflow 测试熔断器的完整工作流程。
+func TestCutBreaker_workflow(t *testing.T) {
 	breaker := NewCutBreaker("test",
 		WithCutBreakerTimeWindow(5*time.Second),
 		WithCutBreakerErrorThresholdPercentage(50),
@@ -130,38 +130,38 @@ func TestBreaker_workflow(t *testing.T) {
 
 	// 此时应还是关闭。
 	if pass, _ := breaker.Allow(); !pass {
-		t.Errorf("Breaker.Allow() got = %v, want %v", pass, true)
+		t.Errorf("CutBreaker.Allow() got = %v, want %v", pass, true)
 	}
 
 	breaker.Timeout()
 	// 此时应该开启了。
 	if pass, _ := breaker.Allow(); pass {
-		t.Errorf("Breaker.Allow() got = %v, want %v", pass, false)
+		t.Errorf("CutBreaker.Allow() got = %v, want %v", pass, false)
 	}
 
 	time.Sleep(2 * time.Second)
 	// 睡眠期结束，应该可以进入半熔断了。
 	if pass, statusMsg := breaker.Allow(); !pass {
-		t.Errorf("Breaker.Allow() got = %v, want %v", pass, true)
+		t.Errorf("CutBreaker.Allow() got = %v, want %v", pass, true)
 	} else if statusMsg != "half-open" {
-		t.Errorf("Breaker.Allow() got = %v, want %v", statusMsg, "half-open")
+		t.Errorf("CutBreaker.Allow() got = %v, want %v", statusMsg, "half-open")
 	}
 
 	breaker.Failure() // 半熔断状态失败，再次进入熔断。
 	if pass, _ := breaker.Allow(); pass {
-		t.Errorf("Breaker.Allow() got = %v, want %v", pass, false)
+		t.Errorf("CutBreaker.Allow() got = %v, want %v", pass, false)
 	}
 
 	time.Sleep(2 * time.Second)
 	// 睡眠期结束，应该可以进入半熔断了。
 	if pass, statusMsg := breaker.Allow(); !pass {
-		t.Errorf("Breaker.Allow() got = %v, want %v", pass, true)
+		t.Errorf("CutBreaker.Allow() got = %v, want %v", pass, true)
 	} else if statusMsg != "half-open" {
-		t.Errorf("Breaker.Allow() got = %v, want %v", statusMsg, "half-open")
+		t.Errorf("CutBreaker.Allow() got = %v, want %v", statusMsg, "half-open")
 	}
 
 	breaker.Success() // 半熔断状态成功，关闭熔断器。
 	if pass, _ := breaker.Allow(); !pass {
-		t.Errorf("Breaker.Allow() got = %v, want %v", pass, true)
+		t.Errorf("CutBreaker.Allow() got = %v, want %v", pass, true)
 	}
 }
