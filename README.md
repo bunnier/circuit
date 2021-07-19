@@ -8,7 +8,7 @@
 
 ## GoDoc
 
-<https://pkg.go.dev/github.com/bunnier/circuit@v1.0.3>
+<https://pkg.go.dev/github.com/bunnier/circuit>
 
 ## 熔断器
 
