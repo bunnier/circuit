@@ -10,6 +10,14 @@
 
 <https://pkg.go.dev/github.com/bunnier/circuit@v1.0.2>
 
+## 未来
+
+- 提供一个通过反射包装普通函数为 Command 需要的功能函数的工具函数;
+- 支持限流功能;
+- 新增一个 GoogleSRE 弹性熔断算法实现的 breaker;
+- 提供订阅状态变化的hook;
+- 提供状态观察接口（接入hystrix-dashboard？）;
+
 ## 使用
 
 ```go
@@ -106,8 +114,3 @@ func main() {
 }
 ```
 
-## TODO
-
-- 提供一个通过反射包装普通函数为 Command 需要的功能函数的函数。
-- 支持限流功能；
-- 新增一个 GoogleSRE 弹性熔断算法实现的 breaker；
