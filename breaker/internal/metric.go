@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"math"
 	"time"
 )
 
@@ -10,8 +11,10 @@ import (
 type Metric struct {
 	ctx context.Context // 用于释放资源的context。
 
-	timeWindow time.Duration  // 滑动窗口的大小（单位秒1-60）。
-	counters   []*UnitCounter // 滑动窗口的所有统计数据，按timeWindow的秒数，多少秒就多少长度。
+	timeWindow     time.Duration // 滑动窗口的大小。
+	metricInterval time.Duration // 窗口中每个统计量的间隔区间。
+
+	counters []*UnitCounter // 滑动窗口的所有统计数据，按timeWindow的秒数，多少秒就多少长度。
 
 	successCh         chan time.Time // 用于记录一次成功数量统计。
 	timeoutCh         chan time.Time // 用于记录一次超时数量统计
@@ -74,7 +77,8 @@ func NewMetric(options ...MerticOption) *Metric {
 	const channelBufferSize int8 = 10 // 用于发送统计数据的channel大小。
 	m := &Metric{
 		ctx:               context.Background(),
-		timeWindow:        time.Second * 5, // 默认统计窗口5s。
+		timeWindow:        time.Second * 5, // 滑动窗口的大小。
+		metricInterval:    time.Second,     // 窗口中每个统计量的间隔区间。
 		successCh:         make(chan time.Time, channelBufferSize),
 		timeoutCh:         make(chan time.Time, channelBufferSize),
 		failureCh:         make(chan time.Time, channelBufferSize),
@@ -89,11 +93,17 @@ func NewMetric(options ...MerticOption) *Metric {
 		option(m)
 	}
 
+	if m.timeWindow < m.metricInterval { // 统计间隔不能大于整个窗口。
+		panic("metric: metricInterval must be equal or less than timeWindow")
+	}
+
 	// 根据窗口大小初始化统计切片。
-	m.counters = make([]*UnitCounter, m.timeWindow/time.Second)
+	counterLen := int(math.Ceil(float64(m.timeWindow) / float64(m.metricInterval)))
+	m.counters = make([]*UnitCounter, counterLen)
 
 	// 开始接收统计。
 	m.run()
+
 	return m
 }
 
@@ -225,13 +235,13 @@ func (m *Metric) doFallbackFailure(now time.Time) {
 
 func (m *Metric) doReset(now time.Time) {
 	m.lastResetTime = now
-	m.counters = make([]*UnitCounter, m.timeWindow/time.Second) // 直接新建一个统计量。
+	m.counters = make([]*UnitCounter, len(m.counters)) // 直接新建一个统计量。
 }
 
 // getCurrentCounter 获取当前的统计块。
 func (m *Metric) getCurrentCounter(now time.Time) *UnitCounter {
-	// 直接把秒取模做数组索引作为当前统计块。
-	index := now.Second() % len(m.counters)
+	// 直接当前秒对数组长度取模。
+	index := int(time.Now().Unix()) % len(m.counters)
 	currentCounter := m.counters[index]
 
 	if currentCounter == nil {
@@ -251,13 +261,23 @@ func (m *Metric) getCurrentCounter(now time.Time) *UnitCounter {
 // MerticOption 是Mertic的可选项。
 type MerticOption func(m *Metric)
 
-// WithMetricCounterSize 设置滑动窗口的大小（单位秒）。
-func WithMetricCounterSize(timeWindow time.Duration) MerticOption {
-	if timeWindow < time.Second || timeWindow > time.Minute {
+// WithMetricTimeWindow 设置滑动窗口的大小（单位秒）。
+func WithMetricTimeWindow(timeWindow time.Duration) MerticOption {
+	if timeWindow < time.Second {
 		panic("metric: timeWindow invalid") // 窗口大小错误属于无法恢复的错误，直接panic把。
 	}
 	return func(m *Metric) {
 		m.timeWindow = timeWindow
+	}
+}
+
+// WithMetricMetricInterval 设置滑动窗口中每个统计量的间隔的大小（单位秒）。
+func WithMetricMetricInterval(metricInterval time.Duration) MerticOption {
+	if metricInterval < time.Second {
+		panic("metric: timeWindow invalid") // 间隔大小设置错误属于无法恢复的错误，直接panic把。
+	}
+	return func(m *Metric) {
+		m.metricInterval = metricInterval
 	}
 }
 

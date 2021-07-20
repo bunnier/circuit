@@ -8,7 +8,7 @@ import (
 
 // TestMetric_workflow 测试数据收集的整个流程逻辑。
 func TestMetric_workflow(t *testing.T) {
-	m := NewMetric(WithMetricCounterSize(time.Second * 3)) // 3s的窗口
+	m := NewMetric(WithMetricTimeWindow(time.Second * 3)) // 3s的窗口
 
 	// 下面有直接/2，所以这里的数字需要都是偶数。
 	const successCount = 4000
@@ -91,6 +91,7 @@ func doMetricCollect(m *Metric,
 		}()
 	}
 	wg.Wait()
+	time.Sleep(time.Millisecond * 10) // 休息10ms，以确保数据能记录完成。
 }
 
 func validateMetricCollect(t *testing.T, name string, m *Metric,

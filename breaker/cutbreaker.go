@@ -44,7 +44,7 @@ func NewCutBreaker(name string, options ...CutBreakerOption) *CutBreaker {
 	}
 
 	// 初始化选项后，根据选项初始化Metric。
-	b.metric = internal.NewMetric(internal.WithMetricCounterSize(b.timeWindow))
+	b.metric = internal.NewMetric(internal.WithMetricTimeWindow(b.timeWindow))
 
 	return b
 }
