@@ -54,6 +54,8 @@ func main() {
 	// 默认参数5s内20次以上，50%失败率后开启熔断器。
 	command := circuit.NewCommand(
 		"test", run,
+		// 默认为CutBreaker，这里可通过选项函数切换为SreBreaker，后面的例子使用CutBreaker，所以下面这行注释掉。
+		// circuit.WithCommandBreaker(breaker.NewSreBreaker("test")),
 		circuit.WithCommandFallback(fallback),
 		circuit.WithCommandTimeout(time.Second*5))
 
