@@ -20,7 +20,8 @@ type SreBreaker struct {
 	name   string           // 名称。
 	metric *internal.Metric // 执行情况统计数据。
 
-	k        float64     // 算法的调节系数。
+	k float64 // 算法的调节系数。
+
 	rand     *rand.Rand  // 随机数生成器。
 	randLock *sync.Mutex // 用于控制随机数生成时候的并发。
 
@@ -50,6 +51,7 @@ func NewSreBreaker(name string, options ...SreBreakerOption) *SreBreaker {
 	b.metric = internal.NewMetric(
 		internal.WithMetricTimeWindow(b.timeWindow),
 		internal.WithMetricMetricInterval(time.Second*30),
+		internal.WithMetricContext(b.ctx),
 	)
 
 	return b
