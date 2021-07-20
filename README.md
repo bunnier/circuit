@@ -4,18 +4,18 @@
 
 ## 简介
 
-提供能简单处理服务熔断逻辑的工具包。
-
-本工具包主要通过`Command`对象交互，可通过`circuit.NewCommand` 函数获取一个 `Command`对象，通过该对象的`Execute`方法即可在熔断器上执行设置的功能函数。
-
-初始化 `Command` 时可设置熔断器算法，熔断器的主接口为`Breaker`，包中目前内置了两个熔断器供选择：
-
-- `CutBreaker`（默认）：提供了常规的断路器模式的熔断器实现。即维护 `Open`、`half-Open`、`Closed` 3个状态，错误率达到阈值后`Open`，`Open`后休眠指定时间转变为`half-Open`，之后允许一个请求探测，如恢复正常，则`Closed`，反之重新进入`Open`；
-- `SreBreaker`：提供了Google SRE提出的 `adaptive throttling` 算法实现的自适应熔断器。算法介绍参考：<https://sre.google/sre-book/handling-overload/#eq2101>；
+本项目提供处理服务熔断限流等逻辑的工具。
 
 ## 文档
 
-<https://pkg.go.dev/github.com/bunnier/circuit>
+> GO Docs：<https://pkg.go.dev/github.com/bunnier/circuit>
+
+本包主要通过 `Command` 对象交互，使用时通过`circuit.NewCommand()` 函数创建 `Command`对象，之后通过 `Command.Execute()` 方法可在熔断器上执行初始时传入的功能函数。
+
+初始化 `Command` 对象时，可通过选项函数 `circuit.WithCommandBreaker()` 传入特定熔断器，包中目前内置了如下两个熔断器供选择：
+
+- **CutBreaker**（默认）：提供了常规的断路器模式的熔断器。类似hystrix的算法，维护 `Open`、`half-Open`、`Closed` 3个状态，错误率达到阈值后`Open`，`Open`后休眠指定时间转变为`half-Open`，之后允许一个请求探测，如恢复正常，则`Closed`，反之重新进入`Open`；
+- **SreBreaker**：实现了Google SRE提出的 `adaptive throttling` 自适应熔断器，算法介绍参考：<https://sre.google/sre-book/handling-overload/#eq2101>；
 
 ## DEMO
 
@@ -117,7 +117,7 @@ func main() {
 
 ## 下一步
 
+- 支持计数器限流;
 - 提供一个通过反射包装普通函数为 Command 需要的功能函数的工具函数;
-- 支持限流功能;
 - 提供订阅状态变化的hook;
 - 提供状态观察接口（接入hystrix-dashboard？）;
