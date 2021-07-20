@@ -2,6 +2,8 @@ package circuit
 
 import (
 	"testing"
+
+	"github.com/bunnier/circuit/breaker"
 )
 
 // run 原始的功能函数。
@@ -21,8 +23,15 @@ func BenchmarkDirectly(b *testing.B) {
 	}
 	b.StopTimer()
 }
+func BenchmarkParallelDirectly(b *testing.B) {
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			run()
+		}
+	})
+}
 
-func BenchmarkCommand(b *testing.B) {
+func BenchmarkCutCommand(b *testing.B) {
 	command := NewCommand("test", wrapRun)
 	defer command.Close()
 	b.ResetTimer()
@@ -32,16 +41,32 @@ func BenchmarkCommand(b *testing.B) {
 	b.StopTimer()
 }
 
-func BenchmarkParallelDirectly(b *testing.B) {
+func BenchmarkParallelCutCommand(b *testing.B) {
+	command := NewCommand("test", wrapRun)
+	defer command.Close()
+	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
 		for p.Next() {
-			run()
+			command.Execute(nil)
 		}
 	})
+	b.StopTimer()
 }
 
-func BenchmarkParallelCommand(b *testing.B) {
-	command := NewCommand("test", wrapRun)
+func BenchmarkSreCommand(b *testing.B) {
+	sreBreaker := breaker.NewSreBreaker("test")
+	command := NewCommand("test", wrapRun, WithCommandBreaker(sreBreaker))
+	defer command.Close()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		command.Execute(nil)
+	}
+	b.StopTimer()
+}
+
+func BenchmarkParallelSreCommand(b *testing.B) {
+	sreBreaker := breaker.NewSreBreaker("test")
+	command := NewCommand("test", wrapRun, WithCommandBreaker(sreBreaker))
 	defer command.Close()
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
