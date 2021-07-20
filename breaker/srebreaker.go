@@ -110,18 +110,20 @@ func (b *SreBreaker) FallbackFailure() {
 func (b *SreBreaker) Summary() *BreakerSummary {
 	summary := b.metric.Summary() // 当前健康统计。
 	return &BreakerSummary{
-		Status:          fmt.Sprintf("current rejection probability: %3.3f", b.getRejectionProbability(summary)), // 直接显示概率
-		Success:         summary.Success,
-		Timeout:         summary.Timeout,
-		Failure:         summary.Failure,
-		FallbackSuccess: summary.FallbackSuccess,
-		FallbackFailure: summary.FallbackFailure,
-		Total:           summary.Total,
-		ErrorPercentage: summary.ErrorPercentage,
-		LastExecuteTime: summary.LastExecuteTime,
-		LastSuccessTime: summary.LastSuccessTime,
-		LastTimeoutTime: summary.LastTimeoutTime,
-		LastFailureTime: summary.LastFailureTime,
+		Status:               fmt.Sprintf("current rejection probability: %3.3f", b.getRejectionProbability(summary)), // 直接显示概率
+		TimeWindowSecond:     summary.TimeWindowSecond,
+		MetricIntervalSecond: summary.MetricIntervalSecond,
+		Success:              summary.Success,
+		Timeout:              summary.Timeout,
+		Failure:              summary.Failure,
+		FallbackSuccess:      summary.FallbackSuccess,
+		FallbackFailure:      summary.FallbackFailure,
+		Total:                summary.Total,
+		ErrorPercentage:      summary.ErrorPercentage,
+		LastExecuteTime:      summary.LastExecuteTime,
+		LastSuccessTime:      summary.LastSuccessTime,
+		LastTimeoutTime:      summary.LastTimeoutTime,
+		LastFailureTime:      summary.LastFailureTime,
 	}
 }
 

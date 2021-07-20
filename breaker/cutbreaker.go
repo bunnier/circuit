@@ -52,18 +52,18 @@ func NewCutBreaker(name string, options ...CutBreakerOption) *CutBreaker {
 // Allow 用于判断断路器是否允许通过请求。
 // 第一返回值：true能通过/false不能；第二返回值：当前Breaker状态的文字描述。
 func (b *CutBreaker) Allow() (bool, string) {
-	healthSummary := b.metric.Summary() // 当前健康统计。
-	return b.allow(healthSummary)
+	summary := b.metric.Summary() // 当前健康统计。
+	return b.allow(summary)
 }
 
 // allow 用于判断断路器是否允许通过请求。
 // 第一返回值：true能通过/false不能；第二返回值：当前Breaker状态的文字描述。
-func (b *CutBreaker) allow(healthSummary *internal.MetricSummary) (bool, string) {
+func (b *CutBreaker) allow(summary *internal.MetricSummary) (bool, string) {
 	switch b.internalStatus {
 	case Closed:
 		// 没有满足最小流量要求 或 没有到达错误百分比阈值。
-		if healthSummary.Total < b.minRequestThreshold ||
-			healthSummary.ErrorPercentage < b.errorThresholdPercentage {
+		if summary.Total < b.minRequestThreshold ||
+			summary.ErrorPercentage < b.errorThresholdPercentage {
 			return true, "closed"
 		}
 		// 开启熔断器，Closed应该不会马上变化为除Open外的其它状态，不过安全起见，还是通过CAS赋值把。
@@ -75,7 +75,7 @@ func (b *CutBreaker) allow(healthSummary *internal.MetricSummary) (bool, string)
 
 	case Openning:
 		// 判断是否已经达到熔断时间。
-		if time.Since(healthSummary.LastExecuteTime) < b.sleepWindow {
+		if time.Since(summary.LastExecuteTime) < b.sleepWindow {
 			return false, "open"
 		}
 		// 过了休眠时间，设置为半开状态，并放一个请求试试。
@@ -123,21 +123,23 @@ func (b *CutBreaker) FallbackFailure() {
 
 // Summary 返回当前健康状态。
 func (b *CutBreaker) Summary() *BreakerSummary {
-	healthSummary := b.metric.Summary() // 当前健康统计。
-	_, statusStr := b.allow(healthSummary)
+	summary := b.metric.Summary() // 当前健康统计。
+	_, statusStr := b.allow(summary)
 	return &BreakerSummary{
-		Status:          statusStr,
-		Success:         healthSummary.Success,
-		Timeout:         healthSummary.Timeout,
-		Failure:         healthSummary.Failure,
-		FallbackSuccess: healthSummary.FallbackSuccess,
-		FallbackFailure: healthSummary.FallbackFailure,
-		Total:           healthSummary.Total,
-		ErrorPercentage: healthSummary.ErrorPercentage,
-		LastExecuteTime: healthSummary.LastExecuteTime,
-		LastSuccessTime: healthSummary.LastSuccessTime,
-		LastTimeoutTime: healthSummary.LastTimeoutTime,
-		LastFailureTime: healthSummary.LastFailureTime,
+		Status:               statusStr,
+		TimeWindowSecond:     summary.TimeWindowSecond,
+		MetricIntervalSecond: summary.MetricIntervalSecond,
+		Success:              summary.Success,
+		Timeout:              summary.Timeout,
+		Failure:              summary.Failure,
+		FallbackSuccess:      summary.FallbackSuccess,
+		FallbackFailure:      summary.FallbackFailure,
+		Total:                summary.Total,
+		ErrorPercentage:      summary.ErrorPercentage,
+		LastExecuteTime:      summary.LastExecuteTime,
+		LastSuccessTime:      summary.LastSuccessTime,
+		LastTimeoutTime:      summary.LastTimeoutTime,
+		LastFailureTime:      summary.LastFailureTime,
 	}
 }
 

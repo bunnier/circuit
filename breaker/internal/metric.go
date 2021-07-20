@@ -57,6 +57,9 @@ func (counter *UnitCounter) Reset() {
 
 // MetricSummary 返回统计数据摘要。
 type MetricSummary struct {
+	TimeWindowSecond     int64 // 滑动窗口的大小。
+	MetricIntervalSecond int64 // 窗口中每个统计量的间隔区间。
+
 	Success         int64 // 成功数量。
 	Timeout         int64 // 超时数量。
 	Failure         int64 // 失败数量。
@@ -134,6 +137,9 @@ func (m *Metric) makeSummary() {
 	} else {
 		summary.ErrorPercentage = float64(summary.Failure) / float64(summary.Total) * 100
 	}
+
+	summary.TimeWindowSecond = int64(m.timeWindow / time.Second)
+	summary.MetricIntervalSecond = int64(m.metricInterval / time.Second)
 
 	summary.LastExecuteTime = m.lastExecuteTime
 	summary.LastSuccessTime = m.lastSuccessTime
