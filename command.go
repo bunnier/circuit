@@ -9,8 +9,8 @@ import (
 	"github.com/bunnier/circuit/breaker"
 )
 
-type CommandFunc func([]interface{}) ([]interface{}, error)                // 功能函数签名。
-type CommandFallbackFunc func([]interface{}, error) ([]interface{}, error) // 降级函数签名。
+type CommandFunc func(interface{}) (interface{}, error)                // 功能函数签名。
+type CommandFallbackFunc func(interface{}, error) (interface{}, error) // 降级函数签名。
 
 var ErrTimeout error = errors.New("command: timeout")      // 服务执行超时。
 var ErrFallback error = errors.New("command: unavailable") // 服务不可用（熔断器开启后返回）。
@@ -59,9 +59,9 @@ func NewCommand(name string, run CommandFunc, options ...CommandOptionFunc) *Com
 
 // executeWithTimeout 用于对功能函数包装超时处理。
 func executeWithTimeout(command *Command, run CommandFunc) CommandFunc {
-	return func(param []interface{}) ([]interface{}, error) {
+	return func(param interface{}) (interface{}, error) {
 		type resType struct {
-			res []interface{}
+			res interface{}
 			err error
 		}
 
@@ -96,8 +96,8 @@ func executeWithTimeout(command *Command, run CommandFunc) CommandFunc {
 }
 
 // executeFallback 用于执行降级函数。
-func (command *Command) executeFallback(params []interface{}, err error) ([]interface{}, error) {
-	if result, err := command.fallback(params, err); err != nil {
+func (command *Command) executeFallback(param interface{}, err error) (interface{}, error) {
+	if result, err := command.fallback(param, err); err != nil {
 		command.breaker.FallbackFailure()
 		return result, err
 	} else {
@@ -107,7 +107,7 @@ func (command *Command) executeFallback(params []interface{}, err error) ([]inte
 }
 
 // Execute 用于直接执行目标函数。
-func (command *Command) Execute(params []interface{}) ([]interface{}, error) {
+func (command *Command) Execute(param interface{}) (interface{}, error) {
 	pass, statusMsg := command.breaker.Allow()
 
 	// 已经熔断走降级逻辑。
@@ -116,10 +116,10 @@ func (command *Command) Execute(params []interface{}) ([]interface{}, error) {
 		if command.fallback == nil { // 没有设置降级函数直接返回
 			return nil, openErr
 		}
-		return command.executeFallback(params, openErr) // 降级函数。
+		return command.executeFallback(param, openErr) // 降级函数。
 	}
 
-	if result, err := command.run(params); err != nil {
+	if result, err := command.run(param); err != nil {
 		if command.fallback == nil { // 没有设置降级函数直接返回
 			return nil, err
 		}

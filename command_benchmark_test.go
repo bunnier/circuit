@@ -10,8 +10,8 @@ var run = func() string {
 }
 
 // wrapRun 是包装后用于 command 用的功能函数。
-var wrapRun = func(i []interface{}) ([]interface{}, error) {
-	return []interface{}{run()}, nil
+var wrapRun = func(param interface{}) (interface{}, error) {
+	return run(), nil
 }
 
 func BenchmarkDirectly(b *testing.B) {
