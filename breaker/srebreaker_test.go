@@ -97,7 +97,6 @@ func TestSreBreaker_allow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			braeker := NewSreBreaker(tt.name,
-				WithSreBreakerTimeWindow(2*time.Second),
 				WithSreBreakerK(1.5))
 
 			// 先判断概率是否符合公式计算结果。

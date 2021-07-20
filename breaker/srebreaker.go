@@ -24,7 +24,7 @@ type SreBreaker struct {
 	rand     *rand.Rand  // 随机数生成器。
 	randLock *sync.Mutex // 用于控制随机数生成时候的并发。
 
-	timeWindow time.Duration // 滑动窗口的大小（单位秒1-60）。
+	timeWindow time.Duration // 滑动窗口的大小。
 }
 
 // NewSreBreaker 用于新建一个 SreBreaker 熔断器。
@@ -39,7 +39,7 @@ func NewSreBreaker(name string, options ...SreBreakerOption) *SreBreaker {
 		rand:     rand.New(rand.NewSource(time.Now().Unix())),
 		randLock: &sync.Mutex{},
 
-		timeWindow: 59, // TODO 应该允许超过1分钟（adaptive throttling算法中的参考值是2分钟）。
+		timeWindow: time.Minute * 2,
 	}
 
 	for _, option := range options {
@@ -47,7 +47,10 @@ func NewSreBreaker(name string, options ...SreBreakerOption) *SreBreaker {
 	}
 
 	// 初始化选项后，根据选项初始化Metric。
-	b.metric = internal.NewMetric(internal.WithMetricTimeWindow(b.timeWindow))
+	b.metric = internal.NewMetric(
+		internal.WithMetricTimeWindow(b.timeWindow),
+		internal.WithMetricMetricInterval(time.Second*30),
+	)
 
 	return b
 }
@@ -125,7 +128,7 @@ func (b *SreBreaker) Summary() *BreakerSummary {
 // SreBreakerOption 是 SreBreaker 的可选项。
 type SreBreakerOption func(b *SreBreaker)
 
-// WithSreBreakerTimeWindow 设置滑动窗口的大小（要求1-60s）。
+// WithSreBreakerTimeWindow 设置滑动窗口的大小（默认2分钟）。
 func WithSreBreakerTimeWindow(timeWindow time.Duration) SreBreakerOption {
 	return func(b *SreBreaker) {
 		b.timeWindow = timeWindow
