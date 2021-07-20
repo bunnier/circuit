@@ -28,7 +28,7 @@ type SreBreaker struct {
 }
 
 // NewSreBreaker 用于新建一个 SreBreaker 熔断器。
-// SreBreaker 提供基Google SRE提出的Handling Overload算法。
+// SreBreaker 提供基Google SRE提出的 adaptive throttling 算法。
 // 算法参考：https://sre.google/sre-book/handling-overload/#eq2101
 func NewSreBreaker(name string, options ...SreBreakerOption) *SreBreaker {
 	b := &SreBreaker{
@@ -39,7 +39,7 @@ func NewSreBreaker(name string, options ...SreBreakerOption) *SreBreaker {
 		rand:     rand.New(rand.NewSource(time.Now().Unix())),
 		randLock: &sync.Mutex{},
 
-		timeWindow: 5,
+		timeWindow: 59, // TODO 应该允许超过1分钟（adaptive throttling算法中的参考值是2分钟）。
 	}
 
 	for _, option := range options {
@@ -139,7 +139,7 @@ func WithSreBreakerContext(ctx context.Context) SreBreakerOption {
 	}
 }
 
-// WithSreBreakerK 设置Google SRE Handling Overload算法熔断算法公式中的调节系数。
+// WithSreBreakerK 设置Google SRE adaptive throttling 算法公式中的调节系数K。
 func WithSreBreakerK(k float64) SreBreakerOption {
 	return func(b *SreBreaker) {
 		b.k = k

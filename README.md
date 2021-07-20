@@ -11,7 +11,7 @@
 初始化 `Command` 时可设置熔断器算法，熔断器的主接口为`Breaker`，包中目前内置了两个熔断器供选择：
 
 - `CutBreaker`（默认）：提供了常规的断路器模式的熔断器实现。即维护 `Open`、`half-Open`、`Closed` 3个状态，错误率达到阈值后`Open`，`Open`后休眠指定时间转变为`half-Open`，之后允许一个请求探测，如恢复正常，则`Closed`，反之重新进入`Open`；
-- `SreBreaker`：提供了Google SRE提出的Handling Overload算法实现的弹性熔断器。算法介绍参考：<https://sre.google/sre-book/handling-overload/#eq2101>；
+- `SreBreaker`：提供了Google SRE提出的 `adaptive throttling` 算法实现的自适应熔断器。算法介绍参考：<https://sre.google/sre-book/handling-overload/#eq2101>；
 
 ## 文档
 
