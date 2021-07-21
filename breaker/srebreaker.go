@@ -22,8 +22,8 @@ type SreBreaker struct {
 
 	k float64 // 算法的调节系数。
 
-	rand     *rand.Rand  // 随机数生成器。
-	randLock *sync.Mutex // 用于控制随机数生成时候的并发。
+	rand     *rand.Rand // 随机数生成器。
+	randLock sync.Mutex // 用于控制随机数生成时候的并发。
 
 	timeWindow time.Duration // 滑动窗口的大小。
 }
@@ -38,7 +38,7 @@ func NewSreBreaker(name string, options ...SreBreakerOption) *SreBreaker {
 
 		k:        2, // 算法的调节系数，越高算法越懒惰，反之越主动。
 		rand:     rand.New(rand.NewSource(time.Now().Unix())),
-		randLock: &sync.Mutex{},
+		randLock: sync.Mutex{},
 
 		timeWindow: time.Minute * 2,
 	}
