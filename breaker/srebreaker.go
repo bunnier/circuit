@@ -36,7 +36,7 @@ func NewSreBreaker(name string, options ...SreBreakerOption) *SreBreaker {
 		ctx:  context.Background(),
 		name: name,
 
-		k:        1.5, // 算法的调节系数，越高算法越懒惰，反之越主动。
+		k:        2, // 算法的调节系数，越高算法越懒惰，反之越主动。
 		rand:     rand.New(rand.NewSource(time.Now().Unix())),
 		randLock: &sync.Mutex{},
 
