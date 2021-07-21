@@ -19,7 +19,7 @@ func TestCommand_workflow(t *testing.T) {
 		return param, nil
 	}
 	// 降级函数。
-	fallback := func(i interface{}, e error) (interface{}, error) {
+	fallback := func(ctx context.Context, i interface{}, e error) (interface{}, error) {
 		return nil, fmt.Errorf("fallback: %w", e)
 	}
 	// 初始化Command。
@@ -85,6 +85,7 @@ func TestCommand_timeout(t *testing.T) {
 		time.Sleep(time.Second * time.Duration(i.(int)))
 		return i, nil
 	}
+
 	// 初始化Command。
 	command := NewCommand("test", run,
 		WithCommandTimeout(time.Second*5))
@@ -110,5 +111,32 @@ func TestCommand_timeout(t *testing.T) {
 	// 此时应该时间过去两秒左右，允许一点时差。
 	if time.Since(startTime) > time.Second*2+time.Millisecond*100 {
 		t.Errorf("Command.ContextExecute() got = %v, want less than %v", time.Since(startTime), time.Second*2+time.Millisecond*100)
+	}
+}
+
+func TestCommand_fallback_timeout(t *testing.T) {
+	// 功能函数。
+	run := func(ctx context.Context, i interface{}) (interface{}, error) {
+		return i, errors.New("must err")
+	}
+	// 降级函数。
+	fallback := func(ctx context.Context, i interface{}, e error) (interface{}, error) {
+		time.Sleep(time.Second * time.Duration(i.(int)))
+		return i, nil
+	}
+	// 初始化Command。
+	command := NewCommand("test", run,
+		WithCommandFallback(fallback),
+		WithCommandTimeout(time.Second*5))
+	defer command.Close()
+
+	// 还没超时。
+	if _, err := command.Execute(1); err != nil {
+		t.Errorf("Command.Execute() got = %v, want nil", err)
+	}
+
+	// 超过默认超时。
+	if _, err := command.Execute(6); !errors.Is(err, ErrTimeout) {
+		t.Errorf("Command.Execute() got = %v, want nil", err)
 	}
 }

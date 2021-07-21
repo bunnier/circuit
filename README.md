@@ -23,6 +23,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -32,21 +33,21 @@ import (
 )
 
 /**
-* 功能函数签名：func(interface{}) (interface{}, error)
-* 降级函数（可选）签名：func(interface{}, error) (interface{}, error)
-* 通过第二个返回值error来判断成功/失败。
+* 功能函数签名：CommandFunc，该类型注释有详细说明。
+* 降级函数（可选）签名：CommandFallbackFunc，该类型注释有详细说明。
+* 更多用法也可参考command_test.go中的测试用例。
  */
 func main() {
 	// 功能函数，简单的通过参数true/false来控制成功失败。
-	run := func(param interface{}) (interface{}, error) {
+	run := func(ctx context.Context, param interface{}) (interface{}, error) {
 		if success := param.(bool); !success {
 			return nil, errors.New("error")
 		}
 		return "ok", nil
 	}
 
-	// 降级函数，固定返回fallback。
-	fallback := func(param interface{}, e error) (interface{}, error) {
+	// 降级函数（可选）。
+	fallback := func(ctx context.Context, param interface{}, e error) (interface{}, error) {
 		return "fallback", nil
 	}
 
@@ -119,6 +120,5 @@ func main() {
 ## 下一步
 
 - 支持计数器限流;
-- 提供一个通过反射包装普通函数为 Command 需要的功能函数的工具函数;
 - 提供订阅状态变化的hook;
-- 提供状态观察接口（接入hystrix-dashboard？）;
+- 提供状态观察接口;
