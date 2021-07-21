@@ -1,6 +1,7 @@
 package circuit
 
 import (
+	"context"
 	"testing"
 
 	"github.com/bunnier/circuit/breaker"
@@ -12,7 +13,7 @@ var run = func() string {
 }
 
 // wrapRun 是包装后用于 command 用的功能函数。
-var wrapRun = func(param interface{}) (interface{}, error) {
+var wrapRun = func(ctx context.Context, param interface{}) (interface{}, error) {
 	return run(), nil
 }
 

@@ -9,8 +9,8 @@ import (
 	"github.com/bunnier/circuit/breaker"
 )
 
-type CommandFunc func(interface{}) (interface{}, error)                // 功能函数签名。
-type CommandFallbackFunc func(interface{}, error) (interface{}, error) // 降级函数签名。
+type CommandFunc func(context.Context, interface{}) (interface{}, error) // 功能函数签名。
+type CommandFallbackFunc func(interface{}, error) (interface{}, error)   // 降级函数签名。
 
 var ErrTimeout error = errors.New("command: timeout")      // 服务执行超时。
 var ErrFallback error = errors.New("command: unavailable") // 服务不可用（熔断器开启后返回）。
@@ -18,7 +18,8 @@ var ErrFallback error = errors.New("command: unavailable") // 服务不可用（
 // 在断路器中执行的命令对象。
 type Command struct {
 	cancel context.CancelFunc // 用于释放内部的goroutine。
-	name   string             // 名称。
+
+	name string // 名称。
 
 	run      CommandFunc         // 功能函数。
 	fallback CommandFallbackFunc // 降级函数。
@@ -29,7 +30,7 @@ type Command struct {
 }
 
 func NewCommand(name string, run CommandFunc, options ...CommandOptionFunc) *Command {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background()) // 这个context主要用于处理内部的资源释放，而非执行功能函数。
 
 	command := &Command{
 		cancel:  cancel,
@@ -52,21 +53,25 @@ func NewCommand(name string, run CommandFunc, options ...CommandOptionFunc) *Com
 	}
 
 	// 对run方法包装一层超时处理，由于需要用到参数，在其它参数处理后调用。
-	command.run = executeWithTimeout(command, run)
+	command.run = wrapExecuteWithTimeoutFucn(command, run)
 
 	return command
 }
 
-// executeWithTimeout 用于对功能函数包装超时处理。
-func executeWithTimeout(command *Command, run CommandFunc) CommandFunc {
-	return func(param interface{}) (interface{}, error) {
+// wrapExecuteWithTimeoutFucn 用于对功能函数包装超时处理。
+func wrapExecuteWithTimeoutFucn(command *Command, run CommandFunc) CommandFunc {
+	return func(ctx context.Context, param interface{}) (interface{}, error) {
 		type resType struct {
 			res interface{}
 			err error
 		}
 
-		panicCh := make(chan interface{}, 1) // 由于放到独立的goroutine中，原本的panic保护会失效，这里做个panic转发，让其回归到原本的goroutine中。
 		resCh := make(chan resType, 1)       // 设置一个1的缓冲，以免超时后goroutine泄漏。
+		panicCh := make(chan interface{}, 1) // 由于放到独立的goroutine中，原本的panic保护会失效，这里做个panic转发，让其回归到原本的goroutine中。
+
+		ctx, cancel := context.WithTimeout(ctx, command.timeout) // 为context加上统一的超时时间。
+		defer cancel()
+
 		go func() {
 			defer func() {
 				if err := recover(); err != nil {
@@ -74,15 +79,20 @@ func executeWithTimeout(command *Command, run CommandFunc) CommandFunc {
 				}
 			}()
 
-			res, err := run(param)
+			res, err := run(ctx, param)
 			resCh <- resType{res, err}
 		}()
 
 		select {
-		case <-time.After(command.timeout):
-			command.breaker.Timeout()
-			return nil, fmt.Errorf("%s: %w", command.name, ErrTimeout)
+		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				command.breaker.Timeout()
+				return nil, fmt.Errorf("%s: %w", command.name, ErrTimeout)
+			}
+			command.breaker.Failure()
+			return nil, fmt.Errorf("%s: %w", command.name, ctx.Err())
 		case err := <-panicCh:
+			command.breaker.Failure()
 			panic(err) // 接收goroutine转发过来的panic。
 		case res := <-resCh:
 			if res.err != nil {
@@ -108,6 +118,11 @@ func (command *Command) executeFallback(param interface{}, err error) (interface
 
 // Execute 用于直接执行目标函数。
 func (command *Command) Execute(param interface{}) (interface{}, error) {
+	return command.ContextExecute(context.Background(), param)
+}
+
+// Execute 用于直接执行目标函数。
+func (command *Command) ContextExecute(ctx context.Context, param interface{}) (interface{}, error) {
 	pass, statusMsg := command.breaker.Allow()
 
 	// 已经熔断走降级逻辑。
@@ -119,7 +134,7 @@ func (command *Command) Execute(param interface{}) (interface{}, error) {
 		return command.executeFallback(param, openErr) // 降级函数。
 	}
 
-	if result, err := command.run(param); err != nil {
+	if result, err := command.run(ctx, param); err != nil {
 		if command.fallback == nil { // 没有设置降级函数直接返回
 			return nil, err
 		}

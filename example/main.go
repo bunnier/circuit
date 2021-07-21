@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -16,7 +17,7 @@ import (
  */
 func main() {
 	// 功能函数，简单的通过参数true/false来控制成功失败。
-	run := func(param interface{}) (interface{}, error) {
+	run := func(ctx context.Context, param interface{}) (interface{}, error) {
 		if success := param.(bool); !success {
 			return nil, errors.New("error")
 		}

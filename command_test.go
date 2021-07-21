@@ -1,6 +1,7 @@
 package circuit
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -9,7 +10,7 @@ import (
 
 func TestCommand_workflow(t *testing.T) {
 	// 功能函数。
-	run := func(i interface{}) (interface{}, error) {
+	run := func(ctx context.Context, i interface{}) (interface{}, error) {
 		param := i.(int)
 		param++
 		if param > 5000 {
@@ -17,14 +18,14 @@ func TestCommand_workflow(t *testing.T) {
 		}
 		return param, nil
 	}
-
 	// 降级函数。
 	fallback := func(i interface{}, e error) (interface{}, error) {
 		return nil, fmt.Errorf("fallback: %w", e)
 	}
-
 	// 初始化Command。
-	command := NewCommand("test", run, WithCommandFallback(fallback))
+	command := NewCommand("test", run,
+		WithCommandFallback(fallback),
+		WithCommandTimeout(time.Second*3))
 	defer command.Close()
 
 	for i := 0; i < 10000; i++ {
@@ -75,5 +76,39 @@ func TestCommand_workflow(t *testing.T) {
 	// 恢复了。
 	if _, err := command.Execute(2); err != nil {
 		t.Errorf("Command.Execute() got = %v, want %v", err, nil)
+	}
+}
+
+func TestCommand_timeout(t *testing.T) {
+	// 功能函数。
+	run := func(ctx context.Context, i interface{}) (interface{}, error) {
+		time.Sleep(time.Second * time.Duration(i.(int)))
+		return i, nil
+	}
+	// 初始化Command。
+	command := NewCommand("test", run,
+		WithCommandTimeout(time.Second*5))
+	defer command.Close()
+
+	// 还没超时。
+	if _, err := command.Execute(1); err != nil {
+		t.Errorf("Command.Execute() got = %v, want nil", err)
+	}
+
+	// 超过默认超时。
+	if _, err := command.Execute(6); !errors.Is(err, ErrTimeout) {
+		t.Errorf("Command.Execute() got = %v, want nil", err)
+	}
+
+	// 测试下传入的超时。
+	startTime := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+	if _, err := command.ContextExecute(ctx, 5); !errors.Is(err, ErrTimeout) {
+		t.Errorf("Command.ContextExecute() got = %v, want %v", err, ErrTimeout)
+	}
+	// 此时应该时间过去两秒左右，允许一点时差。
+	if time.Since(startTime) > time.Second*2+time.Millisecond*100 {
+		t.Errorf("Command.ContextExecute() got = %v, want less than %v", time.Since(startTime), time.Second*2+time.Millisecond*100)
 	}
 }
