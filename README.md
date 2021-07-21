@@ -14,7 +14,7 @@
 
 初始化 `Command` 对象时，可通过选项函数 `circuit.WithCommandBreaker()` 传入特定熔断器，包中目前内置了如下两个熔断器供选择：
 
-- **CutBreaker**（默认）：提供了常规的断路器模式的熔断器。类似hystrix的算法，维护 `Open`、`half-Open`、`Closed` 3个状态，错误率达到阈值后`Open`，`Open`后休眠指定时间转变为`half-Open`，之后允许一个请求探测，如恢复正常，则`Closed`，反之重新进入`Open`；
+- **CutBreaker**（默认）：提供了常规的断路器模式的熔断器。类似hystrix的算法，维护 `Open`、`Half-Open`、`Closed` 3个状态，错误率达到阈值后`Open`，`Open`后休眠指定时间转变为`Half-Open`，之后允许一个请求探测，如恢复正常，则`Closed`，反之重新进入`Open`；
 - **SreBreaker**：实现了Google SRE提出的 `adaptive throttling` 自适应熔断器，算法介绍参考：<https://sre.google/sre-book/handling-overload/#eq2101>；
 
 ## DEMO
