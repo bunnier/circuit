@@ -9,6 +9,7 @@ import (
 )
 
 func TestCommand_workflow(t *testing.T) {
+	t.Parallel()
 	// 功能函数。
 	run := func(ctx context.Context, i interface{}) (interface{}, error) {
 		param := i.(int)
@@ -79,6 +80,7 @@ func TestCommand_workflow(t *testing.T) {
 
 // TestCommand_withtimeout_workflow 由于加入超时机制后，将放入独立的goroutine中运行，执行流程与原本有区别，故独立测试一份。
 func TestCommand_withtimeout_workflow(t *testing.T) {
+	t.Parallel()
 	// 功能函数。
 	run := func(ctx context.Context, i interface{}) (interface{}, error) {
 		param := i.(int)
@@ -148,6 +150,7 @@ func TestCommand_withtimeout_workflow(t *testing.T) {
 }
 
 func TestCommand_timeout(t *testing.T) {
+	t.Parallel()
 	// 功能函数。
 	run := func(ctx context.Context, i interface{}) (interface{}, error) {
 		time.Sleep(time.Second * time.Duration(i.(int)))
@@ -183,6 +186,7 @@ func TestCommand_timeout(t *testing.T) {
 }
 
 func TestCommand_fallback_timeout(t *testing.T) {
+	t.Parallel()
 	// 功能函数。
 	run := func(ctx context.Context, i interface{}) (interface{}, error) {
 		return i, errors.New("must err")

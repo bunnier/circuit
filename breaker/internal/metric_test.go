@@ -8,6 +8,7 @@ import (
 
 // TestMetric_workflow 测试数据收集的整个流程逻辑。
 func TestMetric_workflow(t *testing.T) {
+	t.Parallel()
 	m := NewMetric(WithMetricTimeWindow(time.Second * 3)) // 3s的窗口
 
 	// 下面有直接/2，所以这里的数字需要都是偶数。

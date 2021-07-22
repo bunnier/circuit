@@ -10,6 +10,7 @@ import (
 
 // TestCutBreaker_allow 测试熔断器的状态判断逻辑。
 func TestCutBreaker_allow(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                  string
 		healthSummary         *internal.MetricSummary
@@ -105,6 +106,7 @@ func TestCutBreaker_allow(t *testing.T) {
 
 // TestCutBreaker_workflow 测试熔断器的完整工作流程。
 func TestCutBreaker_workflow(t *testing.T) {
+	t.Parallel()
 	breaker := NewCutBreaker("test",
 		WithCutBreakerTimeWindow(5*time.Second),
 		WithCutBreakerErrorThresholdPercentage(50),

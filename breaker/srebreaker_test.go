@@ -10,6 +10,7 @@ import (
 )
 
 func TestSreBreaker_allow(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		healthSummary *internal.MetricSummary
