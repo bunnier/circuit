@@ -77,7 +77,7 @@ func (b *CutBreaker) allow(summary *internal.MetricSummary) (bool, string) {
 		return false, "half-open" // 半开状态，说明已经有一个请求正在尝试，拒绝所有其它请求。
 
 	case Openning:
-		// 判断是否已经达到熔断时间。
+		// 判断是否已过休眠时间。
 		if time.Since(summary.LastExecuteTime) < b.sleepWindow {
 			return false, "open"
 		}
