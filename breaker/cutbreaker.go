@@ -8,10 +8,10 @@ import (
 	"github.com/bunnier/circuit/breaker/internal"
 )
 
-var _ Breaker = (*CutBreaker)(nil)
+var _ Breaker = (*cutBreaker)(nil)
 
-// CutBreaker 是 Breaker 的一种实现。
-type CutBreaker struct {
+// cutBreaker 是 Breaker 的一种实现。
+type cutBreaker struct {
 	ctx context.Context // 用于释放资源的context。
 
 	name   string           // 名称。
@@ -28,8 +28,8 @@ type CutBreaker struct {
 // NewCutBreaker 用于新建一个 CutBreaker 熔断器。
 // CutBreaker 提供一个“一刀切”的恢复算法。
 // 算法特点：内部维护开启、关闭、半开 三个状态，半开状态时只能有一个请求进入尝试，通过就重置统计，不通过重新完全开启熔断器。
-func NewCutBreaker(name string, options ...CutBreakerOption) *CutBreaker {
-	b := &CutBreaker{
+func NewCutBreaker(name string, options ...CutBreakerOption) *cutBreaker {
+	b := &cutBreaker{
 		ctx:                      context.Background(),
 		name:                     name,
 		internalStatus:           Closed, // 默认关闭。
@@ -54,14 +54,14 @@ func NewCutBreaker(name string, options ...CutBreakerOption) *CutBreaker {
 
 // Allow 用于判断断路器是否允许通过请求。
 // 第一返回值：true能通过/false不能；第二返回值：当前Breaker状态的文字描述。
-func (b *CutBreaker) Allow() (bool, string) {
+func (b *cutBreaker) Allow() (bool, string) {
 	summary := b.metric.Summary() // 当前健康统计。
 	return b.allow(summary)
 }
 
 // allow 用于判断断路器是否允许通过请求。
 // 第一返回值：true能通过/false不能；第二返回值：当前Breaker状态的文字描述。
-func (b *CutBreaker) allow(summary *internal.MetricSummary) (bool, string) {
+func (b *cutBreaker) allow(summary *internal.MetricSummary) (bool, string) {
 	switch b.internalStatus {
 	case Closed:
 		// 没有满足最小流量要求 或 没有到达错误百分比阈值。
@@ -91,7 +91,7 @@ func (b *CutBreaker) allow(summary *internal.MetricSummary) (bool, string) {
 }
 
 // Success 用于记录成功事件。
-func (b *CutBreaker) Success() {
+func (b *cutBreaker) Success() {
 	if b.internalStatus == HalfOpening {
 		b.metric.Reset() // 注意：这里需要先Reset metric再改状态，否则会有并发问题。
 		// HalfOpening状态目前的实现不会有并发，但还是顺手用CAS吧。
@@ -101,31 +101,31 @@ func (b *CutBreaker) Success() {
 }
 
 // Failure 用于记录失败事件。
-func (b *CutBreaker) Failure() {
+func (b *cutBreaker) Failure() {
 	// HalfOpening状态目前的实现不会有并发，但还是顺手用CAS吧。
 	atomic.CompareAndSwapInt32(&b.internalStatus, HalfOpening, Openning)
 	b.metric.Failure()
 }
 
 // Timeout 用于记录失败事件。
-func (b *CutBreaker) Timeout() {
+func (b *cutBreaker) Timeout() {
 	// HalfOpening状态目前的实现不会有并发，但还是顺手用CAS吧。
 	atomic.CompareAndSwapInt32(&b.internalStatus, HalfOpening, Openning)
 	b.metric.Timeout()
 }
 
 // FallbackSuccess 记录一次降级函数执行成功事件。
-func (b *CutBreaker) FallbackSuccess() {
+func (b *cutBreaker) FallbackSuccess() {
 	b.metric.FallbackSuccess()
 }
 
 // FallbackFailure 记录一次降级函数执行失败事件。
-func (b *CutBreaker) FallbackFailure() {
+func (b *cutBreaker) FallbackFailure() {
 	b.metric.FallbackSuccess()
 }
 
 // Summary 返回当前健康状态。
-func (b *CutBreaker) Summary() *BreakerSummary {
+func (b *cutBreaker) Summary() *BreakerSummary {
 	summary := b.metric.Summary() // 当前健康统计。
 	_, statusStr := b.allow(summary)
 	return &BreakerSummary{
@@ -147,39 +147,39 @@ func (b *CutBreaker) Summary() *BreakerSummary {
 }
 
 // CutBreakerOption 是 CutBreaker 的可选项。
-type CutBreakerOption func(b *CutBreaker)
+type CutBreakerOption func(b *cutBreaker)
 
 // WithCutBreakerMinRequestThreshold 设置熔断器生效必须满足的最小流量。
 func WithCutBreakerMinRequestThreshold(minRequestThreshold int64) CutBreakerOption {
-	return func(b *CutBreaker) {
+	return func(b *cutBreaker) {
 		b.minRequestThreshold = minRequestThreshold
 	}
 }
 
 // WithCutBreakerErrorThresholdPercentage 设置熔断器生效必须满足的错误百分比。
 func WithCutBreakerErrorThresholdPercentage(errorThresholdPercentage float64) CutBreakerOption {
-	return func(b *CutBreaker) {
+	return func(b *cutBreaker) {
 		b.errorThresholdPercentage = errorThresholdPercentage
 	}
 }
 
 // WithCutBreakerSleepWindow 设置熔断后重置熔断器的时间窗口。
 func WithCutBreakerSleepWindow(sleepWindow time.Duration) CutBreakerOption {
-	return func(b *CutBreaker) {
+	return func(b *cutBreaker) {
 		b.sleepWindow = sleepWindow
 	}
 }
 
 // WithCutBreakerTimeWindow 设置滑动窗口的大小（要求1-60s）。
 func WithCutBreakerTimeWindow(timeWindow time.Duration) CutBreakerOption {
-	return func(b *CutBreaker) {
+	return func(b *cutBreaker) {
 		b.timeWindow = timeWindow
 	}
 }
 
 // WithCutBreakerContext 设置用于释放资源的context。
 func WithCutBreakerContext(ctx context.Context) CutBreakerOption {
-	return func(b *CutBreaker) {
+	return func(b *cutBreaker) {
 		b.ctx = ctx
 	}
 }

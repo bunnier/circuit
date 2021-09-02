@@ -11,10 +11,10 @@ import (
 	"github.com/bunnier/circuit/breaker/internal"
 )
 
-var _ Breaker = (*SreBreaker)(nil)
+var _ Breaker = (*sreBreaker)(nil)
 
-// SreBreaker 是 Breaker 的一种实现。
-type SreBreaker struct {
+// sreBreaker 是 Breaker 的一种实现。
+type sreBreaker struct {
 	ctx context.Context // 用于释放资源的context。
 
 	name   string           // 名称。
@@ -31,8 +31,8 @@ type SreBreaker struct {
 // NewSreBreaker 用于新建一个 SreBreaker 熔断器。
 // SreBreaker 提供基Google SRE提出的 adaptive throttling 算法。
 // 算法参考：https://sre.google/sre-book/handling-overload/#eq2101
-func NewSreBreaker(name string, options ...SreBreakerOption) *SreBreaker {
-	b := &SreBreaker{
+func NewSreBreaker(name string, options ...SreBreakerOption) *sreBreaker {
+	b := &sreBreaker{
 		ctx:  context.Background(),
 		name: name,
 
@@ -59,14 +59,14 @@ func NewSreBreaker(name string, options ...SreBreakerOption) *SreBreaker {
 
 // Allow 用于判断断路器是否允许通过请求。
 // 第一返回值：true能通过/false不能；第二返回值：当前Breaker状态的文字描述。
-func (b *SreBreaker) Allow() (bool, string) {
+func (b *sreBreaker) Allow() (bool, string) {
 	summary := b.metric.Summary()
 	return b.allow(summary)
 }
 
 // Allow 用于判断断路器是否允许通过请求。
 // 第一返回值：true能通过/false不能；第二返回值：当前Breaker状态的文字描述。
-func (b *SreBreaker) allow(summary *internal.MetricSummary) (bool, string) {
+func (b *sreBreaker) allow(summary *internal.MetricSummary) (bool, string) {
 	b.randLock.Lock()
 	currentProb := b.rand.Float64() // 计算本次概率。
 	b.randLock.Unlock()
@@ -77,39 +77,39 @@ func (b *SreBreaker) allow(summary *internal.MetricSummary) (bool, string) {
 }
 
 // getRejectionProbability 用于计算当前请求的熔断概率。
-func (b *SreBreaker) getRejectionProbability(summary *internal.MetricSummary) float64 {
+func (b *sreBreaker) getRejectionProbability(summary *internal.MetricSummary) float64 {
 	// 算法参考：https://sre.google/sre-book/handling-overload/#eq2101
 	prob := (float64(summary.Total) - b.k*float64(summary.Success)) / float64(summary.Total+1)
 	return math.Max(0, prob)
 }
 
 // Success 用于记录成功事件。
-func (b *SreBreaker) Success() {
+func (b *sreBreaker) Success() {
 	b.metric.Success()
 }
 
 // Failure 用于记录失败事件。
-func (b *SreBreaker) Failure() {
+func (b *sreBreaker) Failure() {
 	b.metric.Failure()
 }
 
 // Timeout 用于记录失败事件。
-func (b *SreBreaker) Timeout() {
+func (b *sreBreaker) Timeout() {
 	b.metric.Timeout()
 }
 
 // FallbackSuccess 记录一次降级函数执行成功事件。
-func (b *SreBreaker) FallbackSuccess() {
+func (b *sreBreaker) FallbackSuccess() {
 	b.metric.FallbackSuccess()
 }
 
 // FallbackFailure 记录一次降级函数执行失败事件。
-func (b *SreBreaker) FallbackFailure() {
+func (b *sreBreaker) FallbackFailure() {
 	b.metric.FallbackSuccess()
 }
 
 // Summary 返回当前健康状态。
-func (b *SreBreaker) Summary() *BreakerSummary {
+func (b *sreBreaker) Summary() *BreakerSummary {
 	summary := b.metric.Summary() // 当前健康统计。
 	return &BreakerSummary{
 		Status:               fmt.Sprintf("current rejection probability: %3.3f", b.getRejectionProbability(summary)), // 直接显示概率
@@ -130,25 +130,25 @@ func (b *SreBreaker) Summary() *BreakerSummary {
 }
 
 // SreBreakerOption 是 SreBreaker 的可选项。
-type SreBreakerOption func(b *SreBreaker)
+type SreBreakerOption func(b *sreBreaker)
 
 // WithSreBreakerTimeWindow 设置滑动窗口的大小（默认2分钟）。
 func WithSreBreakerTimeWindow(timeWindow time.Duration) SreBreakerOption {
-	return func(b *SreBreaker) {
+	return func(b *sreBreaker) {
 		b.timeWindow = timeWindow
 	}
 }
 
 // WithSreBreakerContext 设置用于释放资源的context。
 func WithSreBreakerContext(ctx context.Context) SreBreakerOption {
-	return func(b *SreBreaker) {
+	return func(b *sreBreaker) {
 		b.ctx = ctx
 	}
 }
 
 // WithSreBreakerK 设置Google SRE adaptive throttling 算法公式中的调节系数K。
 func WithSreBreakerK(k float64) SreBreakerOption {
-	return func(b *SreBreaker) {
+	return func(b *sreBreaker) {
 		b.k = k
 	}
 }
